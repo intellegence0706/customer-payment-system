@@ -29,7 +29,6 @@ class PaymentController extends Controller
         }
 
         $payments = $query->orderBy('payment_date', 'desc')->paginate(20);
-
         return view('payments.index', compact('payments'));
     }
 
@@ -61,6 +60,11 @@ class PaymentController extends Controller
     public function show(Payment $payment)
     {
         return view('payments.show', compact('payment'));
+    }
+
+    public function showUploadForm()
+    {
+        return view('payments.upload');
     }
 
     public function uploadMonthEndData(Request $request)

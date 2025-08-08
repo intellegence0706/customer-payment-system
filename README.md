@@ -5,28 +5,33 @@ A comprehensive Laravel-based customer management system with user authenticatio
 ## 🚀 Features
 
 ### Authentication & Authorization
+
 - **User Registration & Login**: Secure authentication system with role-based access
 - **Role Management**: Three user roles (Admin, Manager, User) with different permissions
 - **Session Management**: Remember me functionality and secure logout
 
 ### Customer Management
+
 - **Customer CRUD**: Create, Read, Update, Delete customer information
 - **Customer Search**: Advanced search and filtering capabilities
 - **Data Export**: Export customer data to CSV format
 - **Bank Integration**: API endpoints for bank and branch name lookup
 
 ### Payment Management
+
 - **Payment Tracking**: Record and manage customer payments
 - **Bulk Upload**: Upload month-end payment data via CSV
 - **Payment Reports**: Generate detailed payment reports
 - **Postcard Generation**: Create and export postcard data
 
 ### Reporting System
+
 - **Customer Reports**: Generate comprehensive customer reports
 - **Payment Reports**: Detailed payment analysis and reporting
 - **Role-based Access**: Reports available to Admin and Manager roles only
 
 ### Additional Features
+
 - **Modern UI**: Bootstrap 5 with responsive design
 - **Data Validation**: Comprehensive form validation
 - **Error Handling**: User-friendly error messages
@@ -42,22 +47,26 @@ A comprehensive Laravel-based customer management system with user authenticatio
 ## 🛠️ Installation
 
 ### 1. Clone the Repository
+
 ```bash
 git clone <repository-url>
 cd laravel-customer-management
 ```
 
 ### 2. Install Dependencies
+
 ```bash
 composer install
 ```
 
 ### 3. Environment Configuration
+
 ```bash
 cp .env.example .env
 ```
 
 Edit the `.env` file with your database credentials:
+
 ```env
 APP_NAME="Customer Management System"
 APP_ENV=local
@@ -78,11 +87,13 @@ FILESYSTEM_DISK=local
 ```
 
 ### 4. Generate Application Key
+
 ```bash
 php artisan key:generate
 ```
 
 ### 5. Database Setup
+
 ```bash
 # Create database
 mysql -u root -p -e "CREATE DATABASE customer_management;"
@@ -95,6 +106,7 @@ php artisan db:seed
 ```
 
 ### 6. Storage Setup
+
 ```bash
 # Create storage links
 php artisan storage:link
@@ -104,6 +116,7 @@ chmod -R 775 storage bootstrap/cache
 ```
 
 ### 7. Clear Caches
+
 ```bash
 php artisan config:clear
 php artisan cache:clear
@@ -114,29 +127,35 @@ php artisan view:clear
 ## 🚀 Running the Application
 
 ### Development Server
+
 ```bash
 php artisan serve
 ```
+
 Access the application at: `http://localhost:8000`
 
 ### Production Setup
+
 For production deployment, configure your web server to point to the `public` directory and ensure proper file permissions.
 
 ## 👥 User Roles & Permissions
 
 ### Admin
+
 - Full access to all features
 - User management
 - System configuration
 - All reports and analytics
 
 ### Manager
+
 - Customer management
 - Payment processing
 - Report generation
 - Limited administrative functions
 
 ### User
+
 - Basic customer viewing
 - Payment entry
 - Limited access to features
@@ -144,6 +163,7 @@ For production deployment, configure your web server to point to the `public` di
 ## 📊 Database Structure
 
 ### Users Table
+
 - `id` - Primary key
 - `name` - User's full name
 - `email` - Email address (unique)
@@ -155,6 +175,7 @@ For production deployment, configure your web server to point to the `public` di
 - `created_at` / `updated_at` - Timestamps
 
 ### Customers Table
+
 - `id` - Primary key
 - `name` - Customer name
 - `email` - Email address
@@ -166,6 +187,7 @@ For production deployment, configure your web server to point to the `public` di
 - `created_at` / `updated_at` - Timestamps
 
 ### Payments Table
+
 - `id` - Primary key
 - `customer_id` - Foreign key to customers
 - `amount` - Payment amount
@@ -178,6 +200,7 @@ For production deployment, configure your web server to point to the `public` di
 ## 🔧 Configuration Files
 
 ### Essential Config Files Created
+
 - `config/app.php` - Main application configuration
 - `config/auth.php` - Authentication settings
 - `config/database.php` - Database connections
@@ -189,21 +212,25 @@ For production deployment, configure your web server to point to the `public` di
 ## 🎨 Frontend Features
 
 ### Authentication Pages
+
 - **Login Page**: Modern design with gradient background
 - **Register Page**: User registration with role selection
 - **Responsive Design**: Works on all device sizes
 
 ### Dashboard
+
 - **Overview Cards**: Key metrics and statistics
 - **Recent Activity**: Latest customer and payment updates
 - **Quick Actions**: Fast access to common functions
 
 ### Customer Management
+
 - **Customer List**: Paginated table with search and filters
 - **Customer Form**: Add/edit customer information
 - **Export Functionality**: Download customer data as CSV
 
 ### Payment Management
+
 - **Payment Entry**: Record new payments
 - **Bulk Upload**: Import payment data via CSV
 - **Payment History**: View all payment records
@@ -220,6 +247,7 @@ For production deployment, configure your web server to point to the `public` di
 ## 📝 API Endpoints
 
 ### Authentication
+
 - `GET /login` - Show login form
 - `POST /login` - Process login
 - `POST /logout` - User logout
@@ -227,6 +255,7 @@ For production deployment, configure your web server to point to the `public` di
 - `POST /register` - Process registration
 
 ### Customers
+
 - `GET /customers` - List all customers
 - `GET /customers/create` - Show create form
 - `POST /customers` - Store new customer
@@ -237,6 +266,7 @@ For production deployment, configure your web server to point to the `public` di
 - `GET /customers-export-csv` - Export customers to CSV
 
 ### Payments
+
 - `GET /payments` - List all payments
 - `GET /payments/create` - Show create form
 - `POST /payments` - Store new payment
@@ -244,6 +274,7 @@ For production deployment, configure your web server to point to the `public` di
 - `POST /payments-upload` - Process bulk upload
 
 ### Reports
+
 - `GET /reports` - Reports dashboard
 - `GET /reports/create` - Create new report
 - `POST /reports/customers` - Generate customer report
@@ -254,37 +285,49 @@ For production deployment, configure your web server to point to the `public` di
 ### Common Issues
 
 #### 1. Database Connection Error
+
 ```
 SQLSTATE[HY000] [2002] No connection could be made because the target machine actively refused it
 ```
+
 **Solution:**
+
 - Ensure MySQL server is running
 - Check database credentials in `.env`
 - Verify database exists
 - Check if MySQL is running on the correct port (3306)
 
 #### 2. Cache Store Error
+
 ```
 Cache store [file3e] is not defined
 ```
+
 **Solution:**
+
 - Set `CACHE_DRIVER=array` in `.env`
 - Clear all caches: `php artisan config:clear`
 
 #### 3. Missing Configuration Files
+
 ```
 View path not found
 ```
+
 **Solution:**
+
 - Ensure all config files are present
 - Run `composer dump-autoload`
 - Clear configuration cache
 
 #### 4. Permission Denied
+
 ```
 Permission denied on storage directory
 ```
+
 **Solution:**
+
 ```bash
 chmod -R 775 storage bootstrap/cache
 ```
@@ -292,10 +335,12 @@ chmod -R 775 storage bootstrap/cache
 ## 📦 Dependencies
 
 ### Laravel Framework
+
 - Laravel 10.x
 - PHP 8.1+
 
 ### Key Packages
+
 - `laravel/framework` - Core Laravel framework
 - `barryvdh/laravel-dompdf` - PDF generation
 - `laravel/sanctum` - API authentication
@@ -316,6 +361,7 @@ This project is licensed under the MIT License.
 ## 📞 Support
 
 For support and questions:
+
 - Create an issue in the repository
 - Contact the development team
 - Check the troubleshooting section above
@@ -323,6 +369,7 @@ For support and questions:
 ## 🔄 Updates
 
 ### Version 1.0.0
+
 - Initial release
 - Basic customer management
 - Payment tracking
@@ -332,4 +379,4 @@ For support and questions:
 
 ---
 
-**Happy Coding! 🎉** 
+**Happy Coding! 🎉**

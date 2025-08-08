@@ -29,9 +29,7 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('payments', PaymentController::class);
     
     // Upload routes
-    Route::get('payments/upload', function() {
-        return view('payments.upload');
-    })->name('payments.upload-form');
+    Route::get('payments/upload', [PaymentController::class, 'showUploadForm'])->name('payments.upload-form');
     Route::post('payments/upload', [PaymentController::class, 'uploadMonthEndData'])->name('payments.upload');
 
     // Postcard routes

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class CustomerController extends Controller
 {
@@ -109,7 +111,6 @@ class CustomerController extends Controller
     public function destroy(Customer $customer)
     {
         $customer->delete();
-
         return redirect()->route('customers.index')
             ->with('success', 'Customer deleted successfully.');
     }
@@ -185,34 +186,29 @@ class CustomerController extends Controller
     public function getBankName(Request $request)
     {
         $bankCode = $request->get('bank_code');
-        
-        $banks = [
-            '0001' => 'Ghana Commercial Bank',
-            '0002' => 'Standard Chartered Bank',
-            '0003' => 'Barclays Bank Ghana',
-            '0004' => 'Ecobank Ghana',
-            '0005' => 'Zenith Bank Ghana',
-        ];
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . env('BANK_API_KEY'),
+        ])->get("https://api.bankcode-jp.com/v1/banks/{$bankCode}");
 
-        return response()->json([
-            'bank_name' => $banks[$bankCode] ?? null
-        ]);
+        if ($response->successful()) {
+            $bankData = $response->json();
+            return response()->json(['bank_name' => $bankData['bank_name']]);
+        }
+        return response()->json(['error' => 'Bank code not found'], 404);
     }
 
     public function getBranchName(Request $request)
     {
-        $branchCode = $request->get('branch_code');
-        
-        $branches = [
-            '001' => 'Accra Main Branch',
-            '002' => 'Kumasi Branch',
-            '003' => 'Tamale Branch',
-            '004' => 'Cape Coast Branch',
-            '005' => 'Takoradi Branch',
-        ];
+       $branchCode = $request->get("branch_code");
+       $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . env('BANK_API_KEY'),
+        ])->get("https://api.bankcode-jp.com/v1/branches/{$branchCode}");
 
-        return response()->json([
-            'branch_name' => $branches[$branchCode] ?? null
-        ]);
+        if ($response->successful()) {
+            $branchData = $response->json();
+            return response()->json(['branch_name' => $branchData['branch_name']]);
+
+        }
+        return response()->json(['error' => 'Branch code not found'], 404);
     }
 }
