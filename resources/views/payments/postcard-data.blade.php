@@ -5,21 +5,20 @@
         <h1 class="h2">Postcard Data Preview</h1>
         <div class="btn-toolbar mb-2 mb-md-0">
             <div class="btn-group me-2">
-                {{-- <a href="{{ route('') }}" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left me-1"></i> Back to Form
-            </a>
-            <a href="{{ route('payments-export-csv') }}?month={{ $currentMonth }}&year={{ $currentYear }}" class="btn btn-outline-success">
-                <i class="fas fa-download me-1"></i> Export CSV
-            </a>
-            <a href="{{ route('payments-export-pdf') }}?month={{ $currentMonth }}&year={{ $currentYear }}" class="btn btn-outline-danger">
-                <i class="fas fa-file-pdf me-1"></i> Export PDF
-            </a> --}}
+                <a href="{{ route('payments.postcard-form') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i> Back to Form
+                </a>
+                <a href="{{ route('payments.export-csv') }}?month={{ $currentMonth }}&year={{ $currentYear }}" class="btn btn-outline-success">
+                    <i class="fas fa-download me-1"></i> Export CSV
+                </a>
+                <a href="{{ route('payments.export-pdf') }}?month={{ $currentMonth }}&year={{ $currentYear }}" class="btn btn-outline-danger">
+                    <i class="fas fa-file-pdf me-1"></i> Export PDF
+                </a>
             </div>
         </div>
     </div>
-    <h1>{{ $currentMonth }}</h1>
 
-    {{-- <div class="card mb-4">
+    <div class="card mb-4">
         <div class="card-header">
             <h5 class="mb-0">Postcard Data for {{ date('F Y', mktime(0, 0, 0, $currentMonth, 1, $currentYear)) }}</h5>
         </div>
@@ -66,5 +65,5 @@
                 </table>
             </div>
         </div>
-    </div> --}}
+    </div>
 @endsection

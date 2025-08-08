@@ -28,11 +28,18 @@
                     <h5 class="px-3 mb-3">Customer Management</h5>
                     <ul class="nav flex-column">
                         <li class="nav-item">
+                            <a class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}"
+                                href="{{ route('dashboard') }}">
+                                <i class="fas fa-tachometer-alt me-2"></i>
+                                Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link {{ request()->routeIs('customers.*') ? 'active' : '' }}"
                                 href="{{ route('customers.index') }}">
                                 <i class="fas fa-users me-2"></i>
                                 Customers
-                            </a>    
+                            </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link {{ request()->routeIs('payments.*') ? 'active' : '' }}"
@@ -42,13 +49,13 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ route('payments.upload') }}">
+                            <a class="nav-link" href="{{ route('payments.upload-form') }}">
                                 <i class="fas fa-upload me-2"></i>
                                 Upload Data
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ route('payments.postcard-data') }}">
+                            <a class="nav-link" href="{{ route('payments.postcard-form') }}">
                                 <i class="fas fa-mail-bulk me-2"></i>
                                 Postcard Data
                             </a>

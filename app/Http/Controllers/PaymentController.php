@@ -58,6 +58,11 @@ class PaymentController extends Controller
             ->with('success', 'Payment recorded successfully.');
     }
 
+    public function show(Payment $payment)
+    {
+        return view('payments.show', compact('payment'));
+    }
+
     public function uploadMonthEndData(Request $request)
     {
         $request->validate([
@@ -65,7 +70,6 @@ class PaymentController extends Controller
             'payment_month' => 'required|integer|between:1,12',
             'payment_year' => 'required|integer|min:2020',
         ]);
-
         $file = $request->file('payment_file');
         $path = $file->store('uploads');
         
@@ -114,6 +118,7 @@ class PaymentController extends Controller
 
     public function generatePostcardData(Request $request)
     {
+        
         $request->validate([
             'month' => 'required|integer|between:1,12',
             'year' => 'required|integer|min:2020',
@@ -233,5 +238,54 @@ class PaymentController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    public function exportPostcardPdf(Request $request)
+    {
+        $month = $request->get('month');
+        $year = $request->get('year');
+        
+        // Regenerate postcard data
+        $currentMonth = $month;
+        $currentYear = $year;
+        $previousMonth = $currentMonth == 1 ? 12 : $currentMonth - 1;
+        $previousYear = $currentMonth == 1 ? $currentYear - 1 : $currentYear;
+
+        $customers = Customer::with([
+            'payments' => function ($query) use ($currentMonth, $currentYear, $previousMonth, $previousYear) {
+                $query->where(function ($q) use ($currentMonth, $currentYear) {
+                    $q->where('payment_month', $currentMonth)
+                      ->where('payment_year', $currentYear);
+                })->orWhere(function ($q) use ($previousMonth, $previousYear) {
+                    $q->where('payment_month', $previousMonth)
+                      ->where('payment_year', $previousYear);
+                });
+            }
+        ])->get();
+
+        $postcardData = [];
+
+        foreach ($customers as $customer) {
+            $currentPayment = $customer->payments->where('payment_month', $currentMonth)
+                                                ->where('payment_year', $currentYear)
+                                                ->first();
+            
+            $previousPayment = $customer->payments->where('payment_month', $previousMonth)
+                                                 ->where('payment_year', $previousYear)
+                                                 ->first();
+
+            $postcardData[] = [
+                'customer' => $customer,
+                'current_month_name' => date('F Y', mktime(0, 0, 0, $currentMonth, 1, $currentYear)),
+                'current_payment' => $currentPayment,
+                'previous_month_name' => date('F Y', mktime(0, 0, 0, $previousMonth, 1, $previousYear)),
+                'previous_payment' => $previousPayment,
+            ];
+        }
+
+        $pdf = \PDF::loadView('postcards.pdf', compact('postcardData'));
+        $filename = "postcards_{$year}_{$month}_" . date('Y-m-d_H-i-s') . '.pdf';
+        
+        return $pdf->download($filename);
     }
 }
