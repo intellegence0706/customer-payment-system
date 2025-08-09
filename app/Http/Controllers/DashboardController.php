@@ -10,43 +10,52 @@ use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $stats = $this->getStatistics();
-        $monthlyData = $this->getMonthlyPaymentData();
-        $recentPayments = $this->getRecentPayments();
-        $topBanks = $this->getTopBanks();
+        [$dateFrom, $dateTo] = $this->resolveDateRange($request);
 
-        return view('dashboard.index', compact('stats', 'monthlyData', 'recentPayments', 'topBanks'));
+        $stats = $this->getStatisticsForRange($dateFrom, $dateTo);
+        $monthlyData = $this->getMonthlyPaymentDataForRange($dateFrom, $dateTo);
+        $recentPayments = $this->getRecentPaymentsForRange($dateFrom, $dateTo);
+        $topBanks = $this->getTopBanks();
+        $topCustomers = $this->getTopCustomersForRange($dateFrom, $dateTo);
+
+        return view('dashboard.index', [
+            'stats' => $stats,
+            'monthlyData' => $monthlyData,
+            'recentPayments' => $recentPayments,
+            'topBanks' => $topBanks,
+            'topCustomers' => $topCustomers,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+        ]);
     }
 
-    private function getStatistics()
+    private function getStatisticsForRange(Carbon $dateFrom, Carbon $dateTo): array
     {
-        $currentMonth = now()->month;
-        $currentYear = now()->year;
-        $previousMonth = $currentMonth == 1 ? 12 : $currentMonth - 1;
-        $previousYear = $currentMonth == 1 ? $currentYear - 1 : $currentYear;
+        $totalCustomers = Customer::count();
+
+        $activeCustomersInRange = Customer::whereHas('payments', function ($query) use ($dateFrom, $dateTo) {
+            $query->whereBetween('payment_date', [$dateFrom, $dateTo]);
+        })->count();
+
+        $rangeTotalAmount = Payment::whereBetween('payment_date', [$dateFrom, $dateTo])->sum('amount');
+        $rangePaymentCount = Payment::whereBetween('payment_date', [$dateFrom, $dateTo])->count();
+        $avgPaymentAmount = $rangePaymentCount > 0 ? round($rangeTotalAmount / $rangePaymentCount, 2) : 0;
+
+        $growthRate = $this->calculateRangeGrowthRate($dateFrom, $dateTo);
 
         return [
-            'total_customers' => Customer::count(),
-            'active_customers' => Customer::whereHas('payments', function ($query) use ($currentMonth, $currentYear) {
-                $query->where('payment_month', $currentMonth)
-                      ->where('payment_year', $currentYear);
-            })->count(),
-            'current_month_payments' => Payment::where('payment_month', $currentMonth)
-                                              ->where('payment_year', $currentYear)
-                                              ->sum('amount'),
-            'current_month_count' => Payment::where('payment_month', $currentMonth)
-                                           ->where('payment_year', $currentYear)
-                                           ->count(),
-            'previous_month_payments' => Payment::where('payment_month', $previousMonth)
-                                               ->where('payment_year', $previousYear)
-                                               ->sum('amount'),
-            'growth_rate' => $this->calculateGrowthRate($currentMonth, $currentYear, $previousMonth, $previousYear),
+            'total_customers' => $totalCustomers,
+            'active_customers_in_range' => $activeCustomersInRange,
+            'range_total_amount' => $rangeTotalAmount,
+            'range_payment_count' => $rangePaymentCount,
+            'avg_payment_amount' => $avgPaymentAmount,
+            'growth_rate' => $growthRate,
         ];
     }
 
-    private function getMonthlyPaymentData()
+    private function getMonthlyPaymentDataForRange(Carbon $dateFrom, Carbon $dateTo)
     {
         return Payment::select(
             DB::raw('YEAR(payment_date) as year'),
@@ -54,16 +63,17 @@ class DashboardController extends Controller
             DB::raw('SUM(amount) as total_amount'),
             DB::raw('COUNT(*) as payment_count')
         )
-        ->where('payment_date', '>=', now()->subMonths(12))
+        ->whereBetween('payment_date', [$dateFrom, $dateTo])
         ->groupBy('year', 'month')
-        ->orderBy('year', 'desc')
-        ->orderBy('month', 'desc')
+        ->orderBy('year', 'asc')
+        ->orderBy('month', 'asc')
         ->get();
     }
 
-    private function getRecentPayments()
+    private function getRecentPaymentsForRange(Carbon $dateFrom, Carbon $dateTo)
     {
         return Payment::with('customer')
+            ->whereBetween('payment_date', [$dateFrom, $dateTo])
             ->orderBy('created_at', 'desc')
             ->limit(10)
             ->get();
@@ -79,18 +89,38 @@ class DashboardController extends Controller
             ->get();
     }
 
-    private function calculateGrowthRate($currentMonth, $currentYear, $previousMonth, $previousYear)
+    private function calculateRangeGrowthRate(Carbon $dateFrom, Carbon $dateTo): float
     {
-        $current = Payment::where('payment_month', $currentMonth)
-                         ->where('payment_year', $currentYear)
-                         ->sum('amount');
-        
-        $previous = Payment::where('payment_month', $previousMonth)
-                          ->where('payment_year', $previousYear)
-                          ->sum('amount');
+        $current = Payment::whereBetween('payment_date', [$dateFrom, $dateTo])->sum('amount');
 
-        if ($previous == 0) return 0;
-        
+        $days = $dateFrom->diffInDays($dateTo) + 1;
+        $previousFrom = (clone $dateFrom)->subDays($days);
+        $previousTo = (clone $dateFrom)->subDay();
+
+        $previous = Payment::whereBetween('payment_date', [$previousFrom, $previousTo])->sum('amount');
+
+        if ($previous == 0) {
+            return $current > 0 ? 100.0 : 0.0;
+        }
+
         return round((($current - $previous) / $previous) * 100, 2);
+    }
+
+    private function getTopCustomersForRange(Carbon $dateFrom, Carbon $dateTo)
+    {
+        return Payment::select('customer_id', DB::raw('SUM(amount) as total_amount'))
+            ->with('customer')
+            ->whereBetween('payment_date', [$dateFrom, $dateTo])
+            ->groupBy('customer_id')
+            ->orderByDesc('total_amount')
+            ->limit(5)
+            ->get();
+    }
+
+    private function resolveDateRange(Request $request): array
+    {
+        $to = $request->query('to') ? Carbon::parse($request->query('to'))->endOfDay() : now()->endOfDay();
+        $from = $request->query('from') ? Carbon::parse($request->query('from'))->startOfDay() : (clone $to)->subMonths(11)->startOfMonth();
+        return [$from, $to];
     }
 }

@@ -26,19 +26,19 @@ Route::middleware(['auth'])->group(function () {
     Route::get('api/branch-name', [CustomerController::class, 'getBranchName'])->name('customers.get-branch-name');
 
     // Payment routes
-    Route::resource('payments', PaymentController::class);
-    
-    // Upload routes
+    // Define specific routes BEFORE the resource route to avoid collision with payments/{payment}
     Route::get('payments/upload', [PaymentController::class, 'showUploadForm'])->name('payments.upload-form');
     Route::post('payments/upload', [PaymentController::class, 'uploadMonthEndData'])->name('payments.upload');
-
-    // Postcard routes
     Route::get('payments/postcard-form', function() {
         return view('payments.postcard-form');
     })->name('payments.postcard-form');
+    
     Route::get('payments/postcard-data', [PaymentController::class, 'generatePostcardData'])->name('payments.postcard-data');
     Route::get('payments/export-csv', [PaymentController::class, 'exportPostcardCsv'])->name('payments.export-csv');
     Route::get('payments/export-pdf', [PaymentController::class, 'exportPostcardPdf'])->name('payments.export-pdf');
+    
+    // Keep the resource route last
+    Route::resource('payments', PaymentController::class);
 
     // Report routes (Manager and Admin only)
     Route::middleware(['role:admin,manager'])->group(function () {

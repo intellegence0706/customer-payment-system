@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Payment Postcards</title>
+    <title>入金はがき</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
         .postcard { 
@@ -27,46 +27,46 @@
     @foreach($postcardData as $data)
         <div class="postcard">
             <div class="logo">
-                <h2>CUSTOMER MANAGEMENT SYSTEM</h2>
+                <h2>顧客管理システム</h2>
             </div>
             
             <div class="header">
-                <h3>Payment Notification</h3>
+                <h3>入金のお知らせ</h3>
             </div>
 
             <div class="customer-info">
                 <strong>{{ $data['customer']->name }}</strong><br>
-                Customer #: {{ $data['customer']->customer_number }}<br>
+                顧客番号: {{ $data['customer']->customer_number }}<br>
                 {{ $data['customer']->address }}<br>
                 @if($data['customer']->postal_code)
-                    Postal Code: {{ $data['customer']->postal_code }}
+                    郵便番号: {{ $data['customer']->postal_code }}
                 @endif
             </div>
 
             <div class="payment-info">
-                <strong>Current Month ({{ $data['current_month_name'] }}):</strong><br>
+                <strong>当月（{{ $data['current_month_name'] }}）:</strong><br>
                 @if($data['current_payment'])
-                    Payment Amount: <span class="amount">GH₵ {{ number_format($data['current_payment']->amount, 2) }}</span><br>
-                    Payment Date: {{ $data['current_payment']->payment_date->format('F d, Y') }}<br>
-                    Receipt #: {{ $data['current_payment']->receipt_number }}
+                    入金額: <span class="amount">GH₵ {{ number_format($data['current_payment']->amount, 2) }}</span><br>
+                    入金日: {{ $data['current_payment']->payment_date->format('Y年n月j日') }}<br>
+                    受付番号: {{ $data['current_payment']->receipt_number }}
                 @else
-                    <em>No payment recorded for this month</em>
+                    <em>当月の入金記録はありません</em>
                 @endif
             </div>
 
             <div class="payment-info">
-                <strong>Previous Month ({{ $data['previous_month_name'] }}):</strong><br>
+                <strong>前月（{{ $data['previous_month_name'] }}）:</strong><br>
                 @if($data['previous_payment'])
-                    Amount: GH₵ {{ number_format($data['previous_payment']->amount, 2) }}<br>
-                    Receipt #: {{ $data['previous_payment']->receipt_number }}
+                    入金額: GH₵ {{ number_format($data['previous_payment']->amount, 2) }}<br>
+                    受付番号: {{ $data['previous_payment']->receipt_number }}
                 @else
-                    <em>No payment recorded</em>
+                    <em>入金記録なし</em>
                 @endif
             </div>
 
             <div class="footer">
-                <p>Thank you for your payment. For inquiries, please contact our office.</p>
-                <p>Generated on {{ now()->format('F d, Y') }}</p>
+                <p>いつもご入金ありがとうございます。ご不明点は事務所までお問い合わせください。</p>
+                <p>{{ now()->format('Y年n月j日') }} 作成</p>
             </div>
         </div>
     @endforeach

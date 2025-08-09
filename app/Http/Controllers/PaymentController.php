@@ -13,7 +13,6 @@ class PaymentController extends Controller
     public function index(Request $request)
     {
         $query = Payment::with('customer');
-
         // Filter by month/year
         if ($request->filled('payment_month')) {
             $query->where('payment_month', $request->get('payment_month'));
@@ -22,12 +21,11 @@ class PaymentController extends Controller
         if ($request->filled('payment_year')) {
             $query->where('payment_year', $request->get('payment_year'));
         }
-
         // Filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->get('status'));
         }
-
+        
         $payments = $query->orderBy('payment_date', 'desc')->paginate(20);
         return view('payments.index', compact('payments'));
     }
@@ -64,60 +62,152 @@ class PaymentController extends Controller
 
     public function showUploadForm()
     {
-        return view('payments.upload');
+
+        $currentMonth = now()->month;
+        $currentYear = now()->year;        
+        return view('payments.upload', compact('currentMonth', 'currentYear'));
     }
 
     public function uploadMonthEndData(Request $request)
     {
+        // Enhanced validation
         $request->validate([
-            'payment_file' => 'required|file|mimes:csv,txt',
+            'payment_file' => 'required|file|mimes:csv,txt|max:2048', // 2MB max
             'payment_month' => 'required|integer|between:1,12',
-            'payment_year' => 'required|integer|min:2020',
+            'payment_year' => 'required|integer|min:2020|max:' . (date('Y') + 1),
+        ], [
+            'payment_file.required' => 'Please select a CSV file to upload.',
+            'payment_file.mimes' => 'The file must be a CSV or TXT file.',
+            'payment_file.max' => 'The file size must not exceed 2MB.',
+            'payment_month.between' => 'Month must be between 1 and 12.',
+            'payment_year.min' => 'Year must be 2020 or later.',
+            'payment_year.max' => 'Year cannot be more than ' . (date('Y') + 1) . '.',
         ]);
-        $file = $request->file('payment_file');
-        $path = $file->store('uploads');
-        
-        $handle = fopen(storage_path('app/' . $path), 'r');
-        $header = fgetcsv($handle);
-        
-        $imported = 0;
-        $errors = [];
 
-        while (($data = fgetcsv($handle)) !== false) {
-            try {
-                $customer = Customer::where('customer_number', $data[0])->first();
-                
-                if (!$customer) {
-                    $errors[] = "Customer not found: {$data[0]}";
-                    continue;
-                }
-
-                Payment::create([
-                    'customer_id' => $customer->id,
-                    'payment_month' => $request->payment_month,
-                    'payment_year' => $request->payment_year,
-                    'amount' => $data[1] ?? 0,
-                    'payment_date' => Carbon::parse($data[2] ?? now()),
-                    'receipt_number' => $data[3] ?? null,
-                    'status' => 'completed',
-                    'notes' => 'Imported from month-end data',
-                ]);
-
-                $imported++;
-            } catch (\Exception $e) {
-                $errors[] = "Error processing row: " . implode(',', $data) . " - " . $e->getMessage();
+        try {
+            $file = $request->file('payment_file');
+            $path = $file->store('uploads');
+            
+            $handle = fopen(storage_path('app/' . $path), 'r');
+            
+            if (!$handle) {
+                throw new \Exception('Unable to read the uploaded file.');
             }
+            
+            $header = fgetcsv($handle);
+            
+            // Validate CSV structure
+            if (!$header || count($header) < 3) {
+                throw new \Exception('Invalid CSV format. Expected at least 3 columns: Customer Number, Amount, Payment Date.');
+            }
+            
+            $imported = 0;
+            $errors = [];
+            $rowNumber = 1; // Start from 1 since we already read the header
+            
+            // Start database transaction
+            \DB::beginTransaction();
+            
+            try {
+                while (($data = fgetcsv($handle)) !== false) {
+                    $rowNumber++;
+                    
+                    // Skip empty rows
+                    if (empty(array_filter($data))) {
+                        continue;
+                    }
+                    
+                    // Validate required fields
+                    if (empty($data[0])) {
+                        $errors[] = "Row {$rowNumber}: Customer number is required.";
+                        continue;
+                    }
+                    
+                    if (empty($data[1]) || !is_numeric($data[1])) {
+                        $errors[] = "Row {$rowNumber}: Valid amount is required.";
+                        continue;
+                    }
+                    
+                    // Find customer
+                    $customer = Customer::where('customer_number', trim($data[0]))->first();
+                    
+                    if (!$customer) {
+                        $errors[] = "Row {$rowNumber}: Customer not found with number '{$data[0]}'.";
+                        continue;
+                    }
+                    
+                    // Parse payment date
+                    $paymentDate = null;
+                    if (!empty($data[2])) {
+                        try {
+                            $paymentDate = Carbon::parse($data[2]);
+                        } catch (\Exception $e) {
+                            $paymentDate = now();
+                        }
+                    } else {
+                        $paymentDate = now();
+                    }
+                    
+                    // Check if payment already exists for this customer and month/year
+                    $existingPayment = Payment::where('customer_id', $customer->id)
+                        ->where('payment_month', $request->payment_month)
+                        ->where('payment_year', $request->payment_year)
+                        ->first();
+                    
+                    if ($existingPayment) {
+                        $errors[] = "Row {$rowNumber}: Payment already exists for customer '{$customer->name}' for {$request->payment_month}/{$request->payment_year}.";
+                        continue;
+                    }
+                    
+                    // Create payment
+                    Payment::create([
+                        'customer_id' => $customer->id,
+                        'payment_month' => $request->payment_month,
+                        'payment_year' => $request->payment_year,
+                        'amount' => floatval($data[1]),
+                        'payment_date' => $paymentDate,
+                        'receipt_number' => $data[3] ?? null,
+                        'status' => 'completed',
+                        'notes' => 'Imported from month-end data',
+                    ]);
+                    
+                    $imported++;
+                }
+                
+                \DB::commit();
+                
+            } catch (\Exception $e) {
+                \DB::rollBack();
+                throw $e;
+            }
+            
+            fclose($handle);
+            Storage::delete($path);
+            
+            // Prepare success/error message
+            $message = "Successfully imported {$imported} payments.";
+            if (!empty($errors)) {
+                $message .= " Errors: " . implode('; ', array_slice($errors, 0, 10));
+                if (count($errors) > 10) {
+                    $message .= " (and " . (count($errors) - 10) . " more errors)";
+                }
+            }
+            
+            $alertType = !empty($errors) ? 'warning' : 'success';
+            
+            return redirect()->route('payments.index')
+                ->with($alertType, $message);
+                
+        } catch (\Exception $e) {
+            // Clean up file if it exists
+            if (isset($path) && Storage::exists($path)) {
+                Storage::delete($path);
+            }
+            
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['payment_file' => 'Upload failed: ' . $e->getMessage()]);
         }
-
-        fclose($handle);
-        Storage::delete($path);
-
-        $message = "Imported {$imported} payments.";
-        if (!empty($errors)) {
-            $message .= " Errors: " . implode('; ', array_slice($errors, 0, 5));
-        }
-
-        return redirect()->route('payments.index')->with('success', $message);
     }
 
     public function generatePostcardData(Request $request)
@@ -249,7 +339,6 @@ class PaymentController extends Controller
         $month = $request->get('month');
         $year = $request->get('year');
         
-        // Regenerate postcard data
         $currentMonth = $month;
         $currentYear = $year;
         $previousMonth = $currentMonth == 1 ? 12 : $currentMonth - 1;

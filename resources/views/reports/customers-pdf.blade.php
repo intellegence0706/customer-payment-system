@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Customer Report</title>
+    <title>顧客レポート</title>
     <style>
         body { font-family: Arial, sans-serif; font-size: 12px; }
         .header { text-align: center; margin-bottom: 30px; }
@@ -15,37 +15,37 @@
 </head>
 <body>
     <div class="header">
-        <h1>Customer Report</h1>
-        <p>Generated on {{ now()->format('F d, Y \a\t g:i A') }}</p>
+        <h1>顧客レポート</h1>
+        <p>{{ now()->format('Y年n月j日 g:i A') }} 時点</p>
     </div>
 
     <div class="info">
-        <strong>Report Parameters:</strong><br>
+        <strong>レポート条件:</strong><br>
         @if(isset($parameters['date_from']))
-            Date From: {{ $parameters['date_from'] }}<br>
+            期間開始: {{ $parameters['date_from'] }}<br>
         @endif
         @if(isset($parameters['date_to']))
-            Date To: {{ $parameters['date_to'] }}<br>
+            期間終了: {{ $parameters['date_to'] }}<br>
         @endif
         @if(isset($parameters['gender']))
-            Gender: {{ ucfirst($parameters['gender']) }}<br>
+            性別: {{ ucfirst($parameters['gender']) }}<br>
         @endif
         @if(isset($parameters['bank_name']))
-            Bank: {{ $parameters['bank_name'] }}<br>
+            銀行: {{ $parameters['bank_name'] }}<br>
         @endif
-        Total Records: {{ $customers->count() }}
+        合計件数: {{ $customers->count() }}
     </div>
 
     <table>
         <thead>
             <tr>
-                <th>Customer #</th>
-                <th>Name</th>
-                <th>Gender</th>
-                <th>Phone</th>
-                <th>Bank</th>
-                <th>Account #</th>
-                <th>Created</th>
+                <th>顧客番号</th>
+                <th>氏名</th>
+                <th>性別</th>
+                <th>電話番号</th>
+                <th>銀行</th>
+                <th>口座番号</th>
+                <th>作成日</th>
             </tr>
         </thead>
         <tbody>
@@ -64,7 +64,7 @@
     </table>
 
     <div class="footer">
-        <p>Customer Management System - Confidential Report</p>
+        <p>顧客管理システム - 機密レポート</p>
     </div>
 </body>
 </html>
