@@ -7,7 +7,6 @@
     <title>顧客管理システム</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css" rel="stylesheet" />
-    <!-- Fallback when JS is disabled or AOS fails to load: ensure content is visible -->
     <noscript>
         <style>
             [data-aos] { opacity: 1 !important; transform: none !important; }
@@ -157,9 +156,6 @@
         }
         .btn-neon:hover { filter: brightness(1.05); transform: translateY(-1px); }
         .btn-neon:active { transform: translateY(0); }
-
-        /* Neon gradient title */
-        /* Neon title with graceful fallback */
         .neon-title { color: var(--jp-text); }
         @supports ((-webkit-background-clip: text) or (background-clip: text)) {
             .neon-title {
@@ -171,10 +167,7 @@
             }
         }
 
-        /* Ensure text utilities remain readable in dark theme */
         .text-gray-800, .text-dark { color: var(--jp-text) !important; }
-
-        /* Floating theme toggle */
         .theme-toggle {
             position: fixed;
             right: 18px;

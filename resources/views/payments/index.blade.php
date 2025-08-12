@@ -15,7 +15,7 @@
     </div>
 </div>
 
-<!-- Payments Table -->
+
 <div class="card">
     <div class="card-body">
         <div class="table-responsive">
@@ -48,13 +48,13 @@
                             </td>
                             <td>
                                 <div class="btn-group btn-group-sm" role="group">
-                                    <a href="#" class="btn btn-outline-warning disabled">
+                                    <a href="{{ route('payments.edit', $payment) }}" class="btn btn-outline-warning">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                     <form method="POST" action="#" style="display: inline;" onsubmit="return confirm('よろしいですか？')">
+                                    <form method="POST" action="{{ route('payments.destroy', $payment) }}" style="display: inline;" onsubmit="return confirm('よろしいですか？')">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="btn btn-outline-danger disabled">
+                                        <button type="submit" class="btn btn-outline-danger">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </form>
@@ -72,7 +72,7 @@
                 </tbody>
             </table>
         </div>
-        <!-- Pagination -->
+        
         <div class="d-flex justify-content-between align-items-center mt-3">
             <div>
                 全 {{ $payments->total() }} 件中 {{ $payments->firstItem() ?? 0 }} 〜 {{ $payments->lastItem() ?? 0 }} を表示

@@ -15,7 +15,6 @@
         <form method="POST" action="{{ route('customers.store') }}">
             @csrf
             
-            <!-- Personal Information -->
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">個人情報</h5>

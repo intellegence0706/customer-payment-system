@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class CustomerController extends Controller
 {
@@ -55,8 +56,8 @@ class CustomerController extends Controller
             'address' => 'nullable|string',
             'phone_number' => 'nullable|string|max:20',
             'note' => 'nullable|string',
-            'bank_code' => 'nullable|string|size:4',
-            'branch_code' => 'nullable|string|size:3',
+            'bank_code' => 'nullable|digits:4',
+            'branch_code' => 'nullable|digits:3',
             'account_name' => 'nullable|string|max:255',
             'account_ghana' => 'nullable|string|max:255',
             'account_number' => 'nullable|string|max:50',
@@ -65,10 +66,10 @@ class CustomerController extends Controller
             'bank_note' => 'nullable|string',
         ]);
 
+        Log::info("Customer information", $validated);
         Customer::create($validated);
-
         return redirect()->route('customers.index')
-            ->with('success', 'Customer created successfully.');
+            ->with('success', '顧客情報が正常に追加されました。');
     }
 
     public function show(Customer $customer)
@@ -92,8 +93,8 @@ class CustomerController extends Controller
             'address' => 'nullable|string',
             'phone_number' => 'nullable|string|max:20',
             'note' => 'nullable|string',
-            'bank_code' => 'nullable|string|size:4',
-            'branch_code' => 'nullable|string|size:3',
+            'bank_code' => 'nullable|digits:4',
+            'branch_code' => 'nullable|digits:3',
             'account_name' => 'nullable|string|max:255',
             'account_ghana' => 'nullable|string|max:255',
             'account_number' => 'nullable|string|max:50',
@@ -105,21 +106,20 @@ class CustomerController extends Controller
         $customer->update($validated);
 
         return redirect()->route('customers.index')
-            ->with('success', 'Customer updated successfully.');
+            ->with('success', '顧客情報が成果的に更新されました。');
     }
 
     public function destroy(Customer $customer)
     {
         $customer->delete();
         return redirect()->route('customers.index')
-            ->with('success', 'Customer deleted successfully.');
+            ->with('success', 'お客様の情報が成果的に削除されました。');
     }
 
     public function exportCsv(Request $request)
     {
         $query = Customer::query();
 
-        // Apply same filters as index
         if ($request->filled('search')) {
             $search = $request->get('search');
             $query->where(function ($q) use ($search) {
@@ -140,23 +140,21 @@ class CustomerController extends Controller
 
         $customers = $query->get();
 
-        $filename = 'customers_' . date('Y-m-d_H-i-s') . '.csv';
-        
+        $filename = '顧客_' . date('Y-m-d_H-i-s') . '.csv';
         $headers = [
-            'Content-Type' => 'text/csv',
+            'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
         $callback = function() use ($customers) {
-            $file = fopen('php://output', 'w');
             
-            // CSV headers
+            echo "\xEF\xBB\xBF";
+            $file = fopen('php://output', 'w');
             fputcsv($file, [
-                'Customer Number', 'Name', 'Ghana', 'Gender', 'Postal Code', 
-                'Address', 'Phone Number', 'Note', 'Bank Name', 'Branch Name',
-                'Account Name', 'Account Ghana', 'Account Number', 'Account Holder', 'Bank Note'
+                'お客様番号', '氏名', 'ガーナ', '性別', '郵便番号', 
+                '住所', '電話番号', 'メモ', '銀行名', '支店名',
+                '口座名義', 'ガーナ口座', '口座番号', '口座名義人', '銀行メモ'
             ]);
-
             foreach ($customers as $customer) {
                 fputcsv($file, [
                     $customer->customer_number,
@@ -176,7 +174,6 @@ class CustomerController extends Controller
                     $customer->bank_note,
                 ]);
             }
-
             fclose($file);
         };
 
@@ -185,30 +182,67 @@ class CustomerController extends Controller
 
     public function getBankName(Request $request)
     {
-        $bankCode = $request->get('bank_code');
-        $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . env('BANK_API_KEY'),
-        ])->get("https://api.bankcode-jp.com/v1/banks/{$bankCode}");
-
-        if ($response->successful()) {
-            $bankData = $response->json();
-            return response()->json(['bank_name' => $bankData['bank_name']]);
+        $bankCode = $request->string('bank_code')->toString();
+        if ($bankCode === '' || !ctype_digit($bankCode) || strlen($bankCode) !== 4) {
+            return response()->json(['error' => 'bank_code must be 4 digits'], 422);
         }
-        return response()->json(['error' => 'Bank code not found'], 404);
+
+        $cacheKey = "bank-name:{$bankCode}";
+        if (Cache::has($cacheKey)) {
+            return response()->json(['bank_name' => Cache::get($cacheKey), 'cached' => true]);
+        }
+
+        try {
+            $response = Http::acceptJson()
+                ->withHeaders(['Authorization' => 'Bearer ' . env('BANK_API_KEY')])
+                ->connectTimeout(1)
+                ->timeout(3)
+                ->retry(0, 0)
+                ->get("https://api.bankcode-jp.com/v1/banks/{$bankCode}");
+
+            if ($response->successful()) {
+                $bankData = $response->json();
+                $name = $bankData['bank_name'] ?? null;
+                if ($name) {
+                    Cache::put($cacheKey, $name, now()->addDays(7));
+                    return response()->json(['bank_name' => $name, 'cached' => false]);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Bank API failed', ['code' => $bankCode, 'error' => $e->getMessage()]);
+        }
+        return response()->json(['error' => 'Bank code not found or unavailable'], 404);
     }
 
     public function getBranchName(Request $request)
     {
-       $branchCode = $request->get("branch_code");
-       $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . env('BANK_API_KEY'),
-        ])->get("https://api.bankcode-jp.com/v1/branches/{$branchCode}");
-
-        if ($response->successful()) {
-            $branchData = $response->json();
-            return response()->json(['branch_name' => $branchData['branch_name']]);
-
+        $branchCode = $request->string('branch_code')->toString();
+        if ($branchCode === '' || !ctype_digit($branchCode) || strlen($branchCode) !== 3) {
+            return response()->json(['error' => 'branch_code must be 3 digits'], 422);
         }
-        return response()->json(['error' => 'Branch code not found'], 404);
+        $cacheKey = "branch-name:{$branchCode}";
+        if (Cache::has($cacheKey)) {
+            return response()->json(['branch_name' => Cache::get($cacheKey), 'cached' => true]);
+        }
+        try {
+            $response = Http::acceptJson()
+                ->withHeaders(['Authorization' => 'Bearer ' . env('BANK_API_KEY')])
+                ->connectTimeout(1)
+                ->timeout(3)
+                ->retry(0, 0)
+                ->get("https://api.bankcode-jp.com/v1/branches/{$branchCode}");
+
+            if ($response->successful()) {
+                $branchData = $response->json();
+                $name = $branchData['branch_name'] ?? null;
+                if ($name) {
+                    Cache::put($cacheKey, $name, now()->addDays(7));
+                    return response()->json(['branch_name' => $name, 'cached' => false]);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Branch API failed', ['code' => $branchCode, 'error' => $e->getMessage()]);
+        }
+        return response()->json(['error' => 'Branch code not found or unavailable'], 404);
     }
 }

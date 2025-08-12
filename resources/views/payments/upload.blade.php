@@ -41,7 +41,7 @@
                 <div class="card mb-4">
                     <div class="card-header">
                         <h5 class="mb-0">
-                            <i class="fas fa-upload me-2"></i>Upload CSV File
+                            <i class="fas fa-upload me-2"></i>CSVファイルをアップロード
                         </h5>
                     </div>
                     <div class="card-body">
@@ -56,8 +56,8 @@
                                     onchange="previewFile(this)" />
                                 <div class="form-text">
                                     <small>
-                                         <i class="fas fa-info-circle me-1"></i>
-                                         最大ファイルサイズ: 2MB。形式: 顧客番号, 金額, 入金日, 受付番号(任意)
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        最大ファイルサイズ: 2MB。形式: 顧客番号, 金額, 入金日, 受付番号(任意)
                                     </small>
                                 </div>
                                 @error('payment_file')

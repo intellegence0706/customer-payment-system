@@ -42,16 +42,16 @@
                     <tbody>
                         @forelse($postcardData as $data)
                             <tr>
-                                <td>{{ $data['customer_name'] }}</td>
-                                <td>{{ $data['customer_number'] }}</td>
-                                <td>{{ $data['address'] }}</td>
-                                <td>{{ $data['postal_code'] }}</td>
-                                <td>{{ $data['current_month'] }}</td>
-                                <td>{{ number_format($data['current_payment_amount'], 2) }}</td>
-                                <td>{{ $data['current_payment_date'] ?? '-' }}</td>
-                                <td>{{ $data['previous_month'] }}</td>
-                                <td>{{ $data['previous_receipt_number'] ?? '-' }}</td>
-                                <td>{{ number_format($data['previous_payment_amount'], 2) }}</td>
+                                <td>{{ $data['顧客']->name ?? '' }}</td>
+                                <td>{{ $data['顧客']->customer_number ?? '' }}</td>
+                                <td>{{ $data['顧客']->address ?? '' }}</td>
+                                <td>{{ $data['顧客']->postal_code ?? '' }}</td>
+                                <td>{{ $data['当月名'] ?? '' }}</td>
+                                <td>{{ isset($data['当月入金']) && $data['当月入金'] ? number_format($data['当月入金']->amount, 2) : '0.00' }}</td>
+                                <td>{{ (isset($data['当月入金']) && $data['当月入金'] && $data['当月入金']->payment_date) ? $data['当月入金']->payment_date->format('Y-m-d') : '-' }}</td>
+                                <td>{{ $data['前月名'] ?? '' }}</td>
+                                <td>{{ isset($data['前月入金']) && $data['前月入金'] ? $data['前月入金']->receipt_number : '-' }}</td>
+                                <td>{{ isset($data['前月入金']) && $data['前月入金'] ? number_format($data['前月入金']->amount, 2) : '0.00' }}</td>
                             </tr>
                         @empty
                             <tr>

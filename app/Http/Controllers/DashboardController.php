@@ -39,8 +39,12 @@ class DashboardController extends Controller
             $query->whereBetween('payment_date', [$dateFrom, $dateTo]);
         })->count();
 
-        $rangeTotalAmount = Payment::whereBetween('payment_date', [$dateFrom, $dateTo])->sum('amount');
-        $rangePaymentCount = Payment::whereBetween('payment_date', [$dateFrom, $dateTo])->count();
+        $rangeTotalAmount = Payment::whereBetween('payment_date', [$dateFrom, $dateTo])
+            ->where('status', 'completed')
+            ->sum('amount');
+        $rangePaymentCount = Payment::whereBetween('payment_date', [$dateFrom, $dateTo])
+            ->where('status', 'completed')
+            ->count();
         $avgPaymentAmount = $rangePaymentCount > 0 ? round($rangeTotalAmount / $rangePaymentCount, 2) : 0;
 
         $growthRate = $this->calculateRangeGrowthRate($dateFrom, $dateTo);
@@ -64,6 +68,7 @@ class DashboardController extends Controller
             DB::raw('COUNT(*) as payment_count')
         )
         ->whereBetween('payment_date', [$dateFrom, $dateTo])
+        ->where('status', 'completed')
         ->groupBy('year', 'month')
         ->orderBy('year', 'asc')
         ->orderBy('month', 'asc')
@@ -74,8 +79,8 @@ class DashboardController extends Controller
     {
         return Payment::with('customer')
             ->whereBetween('payment_date', [$dateFrom, $dateTo])
-            ->orderBy('created_at', 'desc')
-            ->limit(10)
+            ->orderBy('payment_date', 'desc')
+            ->limit(50)
             ->get();
     }
 
@@ -91,13 +96,17 @@ class DashboardController extends Controller
 
     private function calculateRangeGrowthRate(Carbon $dateFrom, Carbon $dateTo): float
     {
-        $current = Payment::whereBetween('payment_date', [$dateFrom, $dateTo])->sum('amount');
+        $current = Payment::whereBetween('payment_date', [$dateFrom, $dateTo])
+            ->where('status', 'completed')
+            ->sum('amount');
 
         $days = $dateFrom->diffInDays($dateTo) + 1;
         $previousFrom = (clone $dateFrom)->subDays($days);
         $previousTo = (clone $dateFrom)->subDay();
 
-        $previous = Payment::whereBetween('payment_date', [$previousFrom, $previousTo])->sum('amount');
+        $previous = Payment::whereBetween('payment_date', [$previousFrom, $previousTo])
+            ->where('status', 'completed')
+            ->sum('amount');
 
         if ($previous == 0) {
             return $current > 0 ? 100.0 : 0.0;
@@ -111,6 +120,7 @@ class DashboardController extends Controller
         return Payment::select('customer_id', DB::raw('SUM(amount) as total_amount'))
             ->with('customer')
             ->whereBetween('payment_date', [$dateFrom, $dateTo])
+            ->where('status', 'completed')
             ->groupBy('customer_id')
             ->orderByDesc('total_amount')
             ->limit(5)

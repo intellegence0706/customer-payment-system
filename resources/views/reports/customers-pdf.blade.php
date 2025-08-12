@@ -4,12 +4,35 @@
     <meta charset="utf-8">
     <title>顧客レポート</title>
     <style>
-        body { font-family: Arial, sans-serif; font-size: 12px; }
+        @php $fontData = $embeddedFontBase64 ?? null; @endphp
+        /* Embed Japanese font directly to avoid path/chroot issues */
+        @if($fontData)
+        /* Register same JP font for normal & bold to avoid fallback to non-CJK fonts */
+        @font-face {
+            font-family: 'jpfont';
+            font-style: normal;
+            font-weight: normal;
+            src: url('data:font/ttf;base64,{{ $fontData }}') format('truetype');
+        }
+        @font-face {
+            font-family: 'jpfont';
+            font-style: normal;
+            font-weight: bold;
+            src: url('data:font/ttf;base64,{{ $fontData }}') format('truetype');
+        }
+        body, h1, h2, h3, h4, h5, h6, th, td, strong { font-family: 'jpfont', 'DejaVu Sans', sans-serif; }
+        body { font-size: 11px; }
+        .currency { font-family: 'DejaVu Sans', 'jpfont', sans-serif; }
+        @else
+        body { font-family: 'DejaVu Sans', sans-serif; font-size: 12px; }
+        @endif
         .header { text-align: center; margin-bottom: 30px; }
         .info { margin-bottom: 20px; }
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; font-weight: bold; }
+        /* Ensure unicode is preserved */
+        * { unicode-bidi: plaintext; }
         .footer { margin-top: 30px; text-align: center; font-size: 10px; }
     </style>
 </head>

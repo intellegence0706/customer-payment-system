@@ -6,14 +6,128 @@ use App\Models\Payment;
 use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class PaymentController extends Controller
 {
+    private function loadJapaneseFontBase64(): ?string
+    {
+        $candidateFontPaths = [
+            resource_path('fonts/NotoSansJP.ttf'),
+            resource_path('fonts/NotoSansJP-Regular.ttf'),
+            resource_path('fonts/ipag.ttf'),
+            resource_path('fonts/ipaexg.ttf'),
+            resource_path('fonts/ipaexm.ttf'),
+        ];
+
+        foreach ($candidateFontPaths as $fontPath) {
+            if (file_exists($fontPath)) {
+                $fontBinary = @file_get_contents($fontPath);
+                if ($fontBinary !== false) {
+                    return base64_encode($fontBinary);
+                }
+            }
+        }
+    }
+
+    private function buildPostcardData(int $currentMonth, int $currentYear): array
+    {
+        $previousMonth = $currentMonth == 1 ? 12 : $currentMonth - 1;
+        $previousYear = $currentMonth == 1 ? $currentYear - 1 : $currentYear;
+        $customers = Customer::with([
+            'payments' => function ($query) use ($currentMonth, $currentYear, $previousMonth, $previousYear) {
+                $query->where(function ($q) use ($currentMonth, $currentYear) {
+                    $q->where('payment_month', $currentMonth)
+                        ->where('payment_year', $currentYear);
+                })->orWhere(function ($q) use ($previousMonth, $previousYear) {
+                    $q->where('payment_month', $previousMonth)
+                        ->where('payment_year', $previousYear);
+                });
+            }
+        ])->whereHas('payments', function ($query) use ($currentMonth, $currentYear, $previousMonth, $previousYear) {
+            $query->where(function ($q) use ($currentMonth, $currentYear) {
+                $q->where('payment_month', $currentMonth)
+                    ->where('payment_year', $currentYear);
+            })->orWhere(function ($q) use ($previousMonth, $previousYear) {
+                $q->where('payment_month', $previousMonth)
+                    ->where('payment_year', $previousYear);
+            });
+        })->get();
+
+        $postcardData = [];
+        foreach ($customers as $customer) {
+            $currentPayment = $customer->payments->where('payment_month', $currentMonth)
+                ->where('payment_year', $currentYear)
+                ->first();
+
+            $previousPayment = $customer->payments->where('payment_month', $previousMonth)
+                ->where('payment_year', $previousYear)
+                ->first();
+
+            $postcardData[] = [
+                'customer' => $customer,
+                'current_month_name' => date('F Y', mktime(0, 0, 0, $currentMonth, 1, $currentYear)),
+                'current_payment' => $currentPayment,
+                'previous_month_name' => date('F Y', mktime(0, 0, 0, $previousMonth, 1, $previousYear)),
+                'previous_payment' => $previousPayment,
+            ];
+        }
+        return $postcardData;
+    }
+
+    private function generatePostcardPrintData(int $month, int $year): array
+    {
+        $previousMonth = $month === 1 ? 12 : $month - 1;
+        $previousYear = $month === 1 ? $year - 1 : $year;
+
+        $customers = Customer::with([
+            'payments' => function ($query) use ($month, $year, $previousMonth, $previousYear) {
+                $query->where(function ($q) use ($month, $year) {
+                    $q->where('payment_month', $month)
+                        ->where('payment_year', $year);
+                })->orWhere(function ($q) use ($previousMonth, $previousYear) {
+                    $q->where('payment_month', $previousMonth)
+                        ->where('payment_year', $previousYear);
+                });
+            }
+        ])->get();
+        $rows = [];
+        foreach ($customers as $customer) {
+            $currentPayment = $customer->payments->where('payment_month', $month)
+                ->where('payment_year', $year)
+                ->first();
+            $previousPayment = $customer->payments->where('payment_month', $previousMonth)
+                ->where('payment_year', $previousYear)
+                ->first();
+
+            $rows[] = [
+                'recipient_name' => $customer->name,
+                'customer_number' => $customer->customer_number,
+                'address' => $customer->address,
+                'postal_code' => $customer->postal_code,
+                'current_month' => $month,
+                'current_year' => $year,
+                'current_amount' => $currentPayment ? $currentPayment->amount : null,
+                'current_payment_date' => ($currentPayment && $currentPayment->payment_date)
+                    ? (is_string($currentPayment->payment_date)
+                        ? $currentPayment->payment_date
+                        : $currentPayment->payment_date->format('Y-m-d'))
+                    : null,
+                'current_receipt_number' => $currentPayment ? $currentPayment->receipt_number : null,
+                'previous_month' => $previousMonth,
+                'previous_year' => $previousYear,
+                'previous_amount' => $previousPayment ? $previousPayment->amount : null,
+                'previous_receipt_number' => $previousPayment ? $previousPayment->receipt_number : null,
+            ];
+        }
+        return $rows;
+    }
+
     public function index(Request $request)
     {
         $query = Payment::with('customer');
-        // Filter by month/year
+       
         if ($request->filled('payment_month')) {
             $query->where('payment_month', $request->get('payment_month'));
         }
@@ -21,7 +135,6 @@ class PaymentController extends Controller
         if ($request->filled('payment_year')) {
             $query->where('payment_year', $request->get('payment_year'));
         }
-        // Filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->get('status'));
         }
@@ -60,6 +173,38 @@ class PaymentController extends Controller
         return view('payments.show', compact('payment'));
     }
 
+    public function edit(Payment $payment)
+    {
+        $customers = Customer::orderBy('name')->get();
+        return view('payments.edit', compact('payment', 'customers'));
+    }
+
+    public function update(Request $request, Payment $payment)
+    {
+        $validated = $request->validate([
+            'customer_id' => 'required|exists:customers,id',
+            'payment_month' => 'required|integer|between:1,12',
+            'payment_year' => 'required|integer|min:2020',
+            'amount' => 'required|numeric|min:0',
+            'payment_date' => 'required|date',
+            'receipt_number' => 'nullable|string|max:50',
+            'status' => 'required|in:pending,completed,failed',
+            'notes' => 'nullable|string',
+        ]);
+
+        $payment->update($validated);
+
+        return redirect()->route('payments.index')
+            ->with('success', 'Payment updated successfully.');
+    }
+
+    public function destroy(Payment $payment)
+    {
+        $payment->delete();
+        return redirect()->route('payments.index')
+            ->with('success', 'Payment deleted successfully.');
+    }
+
     public function showUploadForm()
     {
 
@@ -68,9 +213,16 @@ class PaymentController extends Controller
         return view('payments.upload', compact('currentMonth', 'currentYear'));
     }
 
+    public function showPostcardForm()
+    {
+        $currentMonth = now()->month;
+        $currentYear = now()->year;
+        return view('payments.postcard-form', compact('currentMonth', 'currentYear'));
+    }
+
     public function uploadMonthEndData(Request $request)
     {
-        // Enhanced validation
+        
         $request->validate([
             'payment_file' => 'required|file|mimes:csv,txt|max:2048', // 2MB max
             'payment_month' => 'required|integer|between:1,12',
@@ -93,31 +245,26 @@ class PaymentController extends Controller
             if (!$handle) {
                 throw new \Exception('Unable to read the uploaded file.');
             }
-            
             $header = fgetcsv($handle);
-            
-            // Validate CSV structure
             if (!$header || count($header) < 3) {
                 throw new \Exception('Invalid CSV format. Expected at least 3 columns: Customer Number, Amount, Payment Date.');
-            }
+          }
             
             $imported = 0;
             $errors = [];
             $rowNumber = 1; // Start from 1 since we already read the header
             
-            // Start database transaction
+
             \DB::beginTransaction();
             
             try {
                 while (($data = fgetcsv($handle)) !== false) {
                     $rowNumber++;
                     
-                    // Skip empty rows
                     if (empty(array_filter($data))) {
                         continue;
                     }
-                    
-                    // Validate required fields
+                                 
                     if (empty($data[0])) {
                         $errors[] = "Row {$rowNumber}: Customer number is required.";
                         continue;
@@ -128,7 +275,6 @@ class PaymentController extends Controller
                         continue;
                     }
                     
-                    // Find customer
                     $customer = Customer::where('customer_number', trim($data[0]))->first();
                     
                     if (!$customer) {
@@ -136,7 +282,6 @@ class PaymentController extends Controller
                         continue;
                     }
                     
-                    // Parse payment date
                     $paymentDate = null;
                     if (!empty($data[2])) {
                         try {
@@ -148,7 +293,7 @@ class PaymentController extends Controller
                         $paymentDate = now();
                     }
                     
-                    // Check if payment already exists for this customer and month/year
+
                     $existingPayment = Payment::where('customer_id', $customer->id)
                         ->where('payment_month', $request->payment_month)
                         ->where('payment_year', $request->payment_year)
@@ -158,8 +303,7 @@ class PaymentController extends Controller
                         $errors[] = "Row {$rowNumber}: Payment already exists for customer '{$customer->name}' for {$request->payment_month}/{$request->payment_year}.";
                         continue;
                     }
-                    
-                    // Create payment
+
                     Payment::create([
                         'customer_id' => $customer->id,
                         'payment_month' => $request->payment_month,
@@ -184,7 +328,6 @@ class PaymentController extends Controller
             fclose($handle);
             Storage::delete($path);
             
-            // Prepare success/error message
             $message = "Successfully imported {$imported} payments.";
             if (!empty($errors)) {
                 $message .= " Errors: " . implode('; ', array_slice($errors, 0, 10));
@@ -199,7 +342,7 @@ class PaymentController extends Controller
                 ->with($alertType, $message);
                 
         } catch (\Exception $e) {
-            // Clean up file if it exists
+
             if (isset($path) && Storage::exists($path)) {
                 Storage::delete($path);
             }
@@ -212,57 +355,22 @@ class PaymentController extends Controller
 
     public function generatePostcardData(Request $request)
     {
-        
         $request->validate([
             'month' => 'required|integer|between:1,12',
             'year' => 'required|integer|min:2020',
         ]);
-
-        $currentMonth = $request->month;
-        $currentYear = $request->year;
-        
-        // Get previous month
-        $previousMonth = $currentMonth == 1 ? 12 : $currentMonth - 1;
-        $previousYear = $currentMonth == 1 ? $currentYear - 1 : $currentYear;
-
-        $customers = Customer::with([
-            'payments' => function ($query) use ($currentMonth, $currentYear, $previousMonth, $previousYear) {
-                $query->where(function ($q) use ($currentMonth, $currentYear) {
-                    $q->where('payment_month', $currentMonth)
-                      ->where('payment_year', $currentYear);
-                })->orWhere(function ($q) use ($previousMonth, $previousYear) {
-                    $q->where('payment_month', $previousMonth)
-                      ->where('payment_year', $previousYear);
-                });
-            }
-        ])->get();
-
-        $postcardData = [];
-
-        foreach ($customers as $customer) {
-            $currentPayment = $customer->payments->where('payment_month', $currentMonth)
-                                                ->where('payment_year', $currentYear)
-                                                ->first();
-            
-            $previousPayment = $customer->payments->where('payment_month', $previousMonth)
-                                                 ->where('payment_year', $previousYear)
-                                                 ->first();
-
-            $postcardData[] = [
-                'customer_name' => $customer->name,
-                'customer_number' => $customer->customer_number,
-                'address' => $customer->address,
-                'postal_code' => $customer->postal_code,
-                'current_month' => date('F Y', mktime(0, 0, 0, $currentMonth, 1, $currentYear)),
-                'current_payment_amount' => $currentPayment ? $currentPayment->amount : 0,
-                'current_payment_date' => $currentPayment ? $currentPayment->payment_date->format('Y-m-d') : null,
-                'previous_month' => date('F Y', mktime(0, 0, 0, $previousMonth, 1, $previousYear)),
-                'previous_receipt_number' => $previousPayment ? $previousPayment->receipt_number : null,
-                'previous_payment_amount' => $previousPayment ? $previousPayment->amount : 0,
+        $currentMonth = (int) $request->month;
+        $currentYear = (int) $request->year;
+        $postcardData = $this->buildPostcardData($currentMonth, $currentYear);
+        $postcardData = array_map(function (array $row) {
+            return [
+                '顧客' => $row['customer'] ?? null,
+                '当月名' => $row['current_month_name'] ?? null,
+                '当月入金' => $row['current_payment'] ?? null,
+                '前月名' => $row['previous_month_name'] ?? null,
+                '前月入金' => $row['previous_payment'] ?? null,
             ];
-        }
-
-
+        }, $postcardData);
         return view('payments.postcard-data', compact('postcardData', 'currentMonth', 'currentYear'));
     }
 
@@ -270,115 +378,116 @@ class PaymentController extends Controller
     {
         $month = $request->get('month');
         $year = $request->get('year');
-        
-        // Regenerate postcard data
-        $currentMonth = $month;
-        $currentYear = $year;
-        $previousMonth = $currentMonth == 1 ? 12 : $currentMonth - 1;
-        $previousYear = $currentMonth == 1 ? $currentYear - 1 : $currentYear;
-
-        $customers = Customer::with([
-            'payments' => function ($query) use ($currentMonth, $currentYear, $previousMonth, $previousYear) {
-                $query->where(function ($q) use ($currentMonth, $currentYear) {
-                    $q->where('payment_month', $currentMonth)
-                      ->where('payment_year', $currentYear);
-                })->orWhere(function ($q) use ($previousMonth, $previousYear) {
-                    $q->where('payment_month', $previousMonth)
-                      ->where('payment_year', $previousYear);
-                });
-            }
-        ])->get();
-
-        $filename = "postcard_data_{$year}_{$month}_" . date('Y-m-d_H-i-s') . '.csv';
-        
-        $headers = [
-            'Content-Type' => 'text/csv',
+        $currentMonth = (int) $month;
+        $currentYear = (int) $year;
+        $postcardData = $this->buildPostcardData($currentMonth, $currentYear);
+        $filename = "はがき_{$year}_{$month}_" . date('Y-m-d_H-i-s') . '.csv';
+        $headers = [    
+            'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $callback = function() use ($customers, $currentMonth, $currentYear, $previousMonth, $previousYear) {
+        $callback = function() use ($postcardData, $currentMonth, $currentYear) {
+            echo "\xEF\xBB\xBF"; 
             $file = fopen('php://output', 'w');
             
             fputcsv($file, [
-                'Customer Name', 'Customer Number', 'Address', 'Postal Code',
-                'Current Month', 'Current Payment Amount', 'Current Payment Date',
-                'Previous Month', 'Previous Receipt Number', 'Previous Payment Amount'
+                '顧客名', '顧客番号', '住所', '郵便番号',
+                '当月', '当月の決済額', '当月決済日',
+                '前月', '以前の領収書番号', '以前のお支払い額'
             ]);
 
-            foreach ($customers as $customer) {
-                $currentPayment = $customer->payments->where('payment_month', $currentMonth)
-                                                    ->where('payment_year', $currentYear)
-                                                    ->first();
-                
-                $previousPayment = $customer->payments->where('payment_month', $previousMonth)
-                                                     ->where('payment_year', $previousYear)
-                                                     ->first();
-
+            foreach ($postcardData as $row) {
                 fputcsv($file, [
-                    $customer->name,
-                    $customer->customer_number,
-                    $customer->address,
-                    $customer->postal_code,
-                    date('F Y', mktime(0, 0, 0, $currentMonth, 1, $currentYear)),
-                    $currentPayment ? $currentPayment->amount : 0,
-                    $currentPayment ? $currentPayment->payment_date->format('Y-m-d') : '',
-                    date('F Y', mktime(0, 0, 0, $previousMonth, 1, $previousYear)),
-                    $previousPayment ? $previousPayment->receipt_number : '',
-                    $previousPayment ? $previousPayment->amount : 0,
+                    $row['customer']->name,
+                    $row['customer']->customer_number,
+                    $row['customer']->address,
+                    $row['customer']->postal_code,
+                    $row['current_month_name'],
+                    $row['current_payment'] ? $row['current_payment']->amount : 0,
+                    $row['current_payment'] && $row['current_payment']->payment_date ? $row['current_payment']->payment_date->format('Y-m-d') : '',
+                    $row['previous_month_name'],
+                    $row['previous_payment'] ? $row['previous_payment']->receipt_number : '',
+                    $row['previous_payment'] ? $row['previous_payment']->amount : 0,
                 ]);
             }
-
             fclose($file);
         };
-
         return response()->stream($callback, 200, $headers);
     }
 
     public function exportPostcardPdf(Request $request)
     {
-        $month = $request->get('month');
-        $year = $request->get('year');
-        
-        $currentMonth = $month;
-        $currentYear = $year;
-        $previousMonth = $currentMonth == 1 ? 12 : $currentMonth - 1;
-        $previousYear = $currentMonth == 1 ? $currentYear - 1 : $currentYear;
-
-        $customers = Customer::with([
-            'payments' => function ($query) use ($currentMonth, $currentYear, $previousMonth, $previousYear) {
-                $query->where(function ($q) use ($currentMonth, $currentYear) {
-                    $q->where('payment_month', $currentMonth)
-                      ->where('payment_year', $currentYear);
-                })->orWhere(function ($q) use ($previousMonth, $previousYear) {
-                    $q->where('payment_month', $previousMonth)
-                      ->where('payment_year', $previousYear);
-                });
-            }
-        ])->get();
-
-        $postcardData = [];
-
-        foreach ($customers as $customer) {
-            $currentPayment = $customer->payments->where('payment_month', $currentMonth)
-                                                ->where('payment_year', $currentYear)
-                                                ->first();
-            
-            $previousPayment = $customer->payments->where('payment_month', $previousMonth)
-                                                 ->where('payment_year', $previousYear)
-                                                 ->first();
-
-            $postcardData[] = [
-                'customer' => $customer,
-                'current_month_name' => date('F Y', mktime(0, 0, 0, $currentMonth, 1, $currentYear)),
-                'current_payment' => $currentPayment,
-                'previous_month_name' => date('F Y', mktime(0, 0, 0, $previousMonth, 1, $previousYear)),
-                'previous_payment' => $previousPayment,
+        $month = (int) $request->get('month');
+        $year = (int) $request->get('year');
+        $postcardData = $this->buildPostcardData($month, $year);
+        $postcardData = array_map(function (array $row) {
+            return [
+                '顧客' => $row['customer'] ?? null,
+                '当月名' => $row['current_month_name'] ?? null,
+                '当月入金' => $row['current_payment'] ?? null,
+                '前月名' => $row['previous_month_name'] ?? null,
+                '前月入金' => $row['previous_payment'] ?? null,
             ];
-        }
+        }, $postcardData);
+        $embeddedFontBase64 = $this->loadJapaneseFontBase64();
+        \PDF::setOptions([
+            'isHtml5ParserEnabled' => true,
+            'isRemoteEnabled' => true,
+            'defaultFont' => 'NotoSansJP', 
+            'dpi' => 96,
+            'fontDir' => base_path('resources/fonts'),
+            'fontCache' => storage_path('fonts'),
+            ]);
+    
+        try {       
+            $pdf = \PDF::loadView('postcards.pdf', [
+                'postcardData' => $postcardData,
+                ])->setPaper('a4');
+            $filename = sprintf('はがき_%04d_%02d_%s.pdf', (int)$year, (int)$month, date('Y-m-d_H-i-s'));
+            return $pdf->download($filename);
 
-        $pdf = \PDF::loadView('postcards.pdf', compact('postcardData'));
-        $filename = "postcards_{$year}_{$month}_" . date('Y-m-d_H-i-s') . '.pdf';
-        
-        return $pdf->download($filename);
+        } catch (\Exception $e) {
+            Log::error('Error generating PDF: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to generate PDF'], 500);
+        }
     }
+    
+    public function exportPostcardPrintCsv(Request $request)
+    {
+        $month = (int) $request->get('month');
+        $year = (int) $request->get('year');
+        if (!$month || $month < 1 || $month > 12 || !$year || $year < 2020) {
+            return redirect()->back()->with('error', '有効な月と年を選択してください。');
+        }
+        $data = $this->generatePostcardPrintData($month, $year);
+        $filename = "postcard_print_{$year}_{$month}_" . date('Y-m-d_H-i-s') . ".csv";
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+        $callback = function() use ($data) {
+            echo "\xEF\xBB\xBF";
+            $file = fopen('php://output', 'w');
+            fputcsv($file, [
+                'Recipient Name', 'Customer Number', 'Address', 'Postal Code',
+                'Current Month', 'Current Year', 'Current Amount', 'Current Payment Date', 'Current Receipt Number',
+                'Previous Month', 'Previous Year', 'Previous Amount', 'Previous Receipt Number'
+            ]);
+            foreach ($data as $row) {
+                fputcsv($file, [
+                    $row['recipient_name'], $row['customer_number'], $row['address'], $row['postal_code'],
+                    $row['current_month'], $row['current_year'], $row['current_amount'], $row['current_payment_date'], $row['current_receipt_number'],
+                    $row['previous_month'], $row['previous_year'], $row['previous_amount'], $row['previous_receipt_number']
+                ]);
+            }
+            fclose($file);
+        };
+        return response()->stream($callback, 200, $headers);       
+    }
+
+   
 }
+
+
+

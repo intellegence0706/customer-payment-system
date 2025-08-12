@@ -193,6 +193,14 @@ $(document).ready(function() {
             $.get('{{ route("customers.get-bank-name") }}', { bank_code: bankCode })
                 .done(function(data) {
                     $('#bank_name').val(data.bank_name || '');
+                })
+                .fail(function(xhr) {
+                    $('#bank_name').val('');
+                    var msg = '銀行名の取得に失敗しました。しばらくしてから再試行してください。';
+                    if (xhr && xhr.responseJSON && xhr.responseJSON.error) {
+                        msg = xhr.responseJSON.error;
+                    }
+                    if (window.showToast) window.showToast('error', msg);
                 });
         } else {
             $('#bank_name').val('');
@@ -206,6 +214,14 @@ $(document).ready(function() {
             $.get('{{ route("customers.get-branch-name") }}', { branch_code: branchCode })
                 .done(function(data) {
                     $('#branch_name').val(data.branch_name || '');
+                })
+                .fail(function(xhr) {
+                    $('#branch_name').val('');
+                    var msg = '支店名の取得に失敗しました。しばらくしてから再試行してください。';
+                    if (xhr && xhr.responseJSON && xhr.responseJSON.error) {
+                        msg = xhr.responseJSON.error;
+                    }
+                    if (window.showToast) window.showToast('error', msg);
                 });
         } else {
             $('#branch_name').val('');

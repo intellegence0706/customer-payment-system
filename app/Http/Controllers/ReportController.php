@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class ReportController extends Controller
 {
@@ -59,7 +60,7 @@ class ReportController extends Controller
             return $this->generateCustomerCSV($customers, $validated);
         }
     }
-
+    
     public function generatePaymentReport(Request $request)
     {
         $validated = $request->validate([
@@ -71,7 +72,8 @@ class ReportController extends Controller
 
         $payments = Payment::with('customer')
             ->where('payment_month', $validated['month'])
-            ->where('payment_year', $validated['year']);
+            ->where('payment_year', $validated['year'])
+            ->limit(500); // Limit to 500 records for performance
 
         if ($validated['status']) {
             $payments->where('status', $validated['status']);
@@ -88,11 +90,46 @@ class ReportController extends Controller
 
     private function generateCustomerPDF($customers, $parameters)
     {
-        $pdf = PDF::loadView('reports.customers-pdf', compact('customers', 'parameters'));
         
+        $tempDir = config('dompdf.temp_dir', storage_path('app/dompdf_temp'));
+        if (!is_dir($tempDir)) { @mkdir($tempDir, 0775, true); }
+        $fontCacheDir = storage_path('fonts');
+        if (!is_dir($fontCacheDir)) { @mkdir($fontCacheDir, 0775, true); }
+
+        $fontCandidates = [
+            env('PDF_JP_FONT_PATH', resource_path('fonts/ipag.ttf')),
+            resource_path('fonts/ipag.ttf'),
+            public_path('fonts/ipag.ttf'),
+            storage_path('app/fonts/ipag.ttf'),
+        ];
+
+        $resolvedFontPath = null;
+        foreach ($fontCandidates as $candidate) {
+            if (is_string($candidate) && file_exists($candidate)) {
+                $resolvedFontPath = $candidate;
+                break;
+            }
+        }
+        $embeddedFontBase64 = $resolvedFontPath ? base64_encode(file_get_contents($resolvedFontPath)) : null;
+
+        $pdf = PDF::setOptions([
+                'defaultFont' => env('DOMPDF_DEFAULT_FONT', 'ipag'),
+                'chroot' => base_path(),
+                'dpi' => config('dompdf.dpi', 72),
+                'fontDir' => resource_path('fonts/'),
+                'fontCache' => $fontCacheDir,
+                'isHtml5ParserEnabled' => config('dompdf.isHtml5ParserEnabled', false),
+                'isRemoteEnabled' => config('dompdf.isRemoteEnabled', false),
+                'enable_font_subsetting' => true,
+                'tempDir' => $tempDir,
+            ])
+            ->loadView('reports.customers-pdf', [
+                'customers' => $customers,
+                'parameters' => $parameters,
+                'embeddedFontBase64' => $embeddedFontBase64,
+            ]);
+
         $filename = 'customer_report_' . date('Y-m-d_H-i-s') . '.pdf';
-        
-        // Save report record
         Report::create([
             'name' => 'Customer Report',
             'type' => 'customer_pdf',
@@ -108,9 +145,8 @@ class ReportController extends Controller
     private function generateCustomerCSV($customers, $parameters)
     {
         $filename = 'customer_report_' . date('Y-m-d_H-i-s') . '.csv';
-        
         $headers = [
-            'Content-Type' => 'text/csv',
+            'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
@@ -125,6 +161,7 @@ class ReportController extends Controller
         ]);
 
         $callback = function() use ($customers) {
+            echo "\xEF\xBB\xBF"; 
             $file = fopen('php://output', 'w');
             
             fputcsv($file, [
@@ -154,8 +191,43 @@ class ReportController extends Controller
 
     private function generatePaymentPDF($payments, $parameters)
     {
-        $pdf = PDF::loadView('reports.payments-pdf', compact('payments', 'parameters'));
-        
+  
+        $tempDir = config('dompdf.temp_dir', storage_path('app/dompdf_temp'));
+        if (!is_dir($tempDir)) { @mkdir($tempDir, 0775, true); }
+        $fontCacheDir = storage_path('fonts');
+        if (!is_dir($fontCacheDir)) { @mkdir($fontCacheDir, 0775, true); }
+
+        $fontCandidates = [
+            env('PDF_JP_FONT_PATH', resource_path('fonts/ipag.ttf')),
+            resource_path('fonts/ipag.ttf'),
+            public_path('fonts/ipag.ttf'),
+            storage_path('app/fonts/ipag.ttf'),
+        ];
+        $resolvedFontPath = null;
+        foreach ($fontCandidates as $candidate) {
+            if (is_string($candidate) && file_exists($candidate)) {
+                $resolvedFontPath = $candidate;
+                break;
+            }
+        }
+        $embeddedFontBase64 = $resolvedFontPath ? base64_encode(file_get_contents($resolvedFontPath)) : null;
+
+        $pdf = PDF::setOptions([
+                'defaultFont' => env('DOMPDF_DEFAULT_FONT', 'ipag'),
+                'chroot' => base_path(),
+                'dpi' => config('dompdf.dpi', 72),
+                'fontDir' => resource_path('fonts/'),
+                'fontCache' => $fontCacheDir,
+                'isHtml5ParserEnabled' => config('dompdf.isHtml5ParserEnabled', false),
+                'isRemoteEnabled' => config('dompdf.isRemoteEnabled', false),
+                'enable_font_subsetting' => true,
+                'tempDir' => $tempDir,
+            ])
+            ->loadView('reports.payments-pdf', [
+                'payments' => $payments,
+                'parameters' => $parameters,
+                'embeddedFontBase64' => $embeddedFontBase64,
+            ]);
         $filename = 'payment_report_' . $parameters['year'] . '_' . $parameters['month'] . '_' . date('Y-m-d_H-i-s') . '.pdf';
         
         Report::create([
@@ -166,16 +238,15 @@ class ReportController extends Controller
             'file_path' => $filename,
             'status' => 'completed',
         ]);
-
+        
         return $pdf->download($filename);
     }
 
     private function generatePaymentCSV($payments, $parameters)
     {
         $filename = 'payment_report_' . $parameters['year'] . '_' . $parameters['month'] . '_' . date('Y-m-d_H-i-s') . '.csv';
-        
         $headers = [
-            'Content-Type' => 'text/csv',
+            'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
@@ -189,6 +260,7 @@ class ReportController extends Controller
         ]);
 
         $callback = function() use ($payments) {
+            echo "\xEF\xBB\xBF"; 
             $file = fopen('php://output', 'w');
             
             fputcsv($file, [

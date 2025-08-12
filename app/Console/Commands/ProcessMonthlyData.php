@@ -20,8 +20,6 @@ class ProcessMonthlyData extends Command
         $year = $this->option('year') ?: now()->year;
 
         $this->info("Processing monthly data for {$month}/{$year}");
-
-        // Check for uploaded files in the monthly data directory
         $files = Storage::files("monthly-data/{$year}/{$month}");
         
         if (empty($files)) {
@@ -78,7 +76,6 @@ class ProcessMonthlyData extends Command
                     continue;
                 }
 
-                // Check if payment already exists
                 $existingPayment = Payment::where('customer_id', $customer->id)
                     ->where('payment_month', $month)
                     ->where('payment_year', $year)
@@ -115,7 +112,6 @@ class ProcessMonthlyData extends Command
 
         fclose($handle);
         
-        // Move processed file to archive
         $archivePath = "monthly-data/archive/{$year}/{$month}/" . basename($filePath);
         Storage::move($filePath, $archivePath);
 

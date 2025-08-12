@@ -31,7 +31,15 @@ class PostcardController extends Controller
                       ->where('payment_year', $previousYear);
                 });
             }
-        ])->get();
+        ])->whereHas('payments', function ($query) use ($currentMonth, $currentYear, $previousMonth, $previousYear) {
+            $query->where(function ($q) use ($currentMonth, $currentYear) {
+                $q->where('payment_month', $currentMonth)
+                  ->where('payment_year', $currentYear);
+            })->orWhere(function ($q) use ($previousMonth, $previousYear) {
+                $q->where('payment_month', $previousMonth)
+                  ->where('payment_year', $previousYear);
+            });
+        })->get();
 
         $postcardData = [];
 
@@ -53,11 +61,56 @@ class PostcardController extends Controller
             ];
         }
 
-        $pdf = PDF::loadView('postcards.pdf', compact('postcardData', 'currentMonth', 'currentYear'))
-                 ->setPaper('A4', 'portrait');
+        // Ensure DomPDF temp and font cache dirs exist
+        $tempDir = config('dompdf.temp_dir', storage_path('app/dompdf_temp'));
+        if (!is_dir($tempDir)) { @mkdir($tempDir, 0775, true); }
+        $fontCacheDir = storage_path('fonts');
+        if (!is_dir($fontCacheDir)) { @mkdir($fontCacheDir, 0775, true); }
+
+        // Preload and cache JP font as base64 to avoid IO inside Blade
+        $fontCandidates = [
+            env('PDF_JP_FONT_PATH', resource_path('fonts/ipag.ttf')),
+            resource_path('fonts/ipag.ttf'),
+            public_path('fonts/ipag.ttf'),
+            storage_path('app/fonts/ipag.ttf'),
+        ];
+        $resolvedFontPath = null;
+        foreach ($fontCandidates as $candidate) {
+            if (is_string($candidate) && file_exists($candidate)) {
+                $resolvedFontPath = $candidate;
+                break;
+            }
+        }
+        $embeddedFontBase64 = $resolvedFontPath ? base64_encode(file_get_contents($resolvedFontPath)) : null;
+
+        // Limit rows in one PDF to avoid huge memory usage; split per 200 postcards
+        $chunks = array_chunk($postcardData, 200);
+
+        $pdf = PDF::setOptions([
+                    'defaultFont' => env('DOMPDF_DEFAULT_FONT', 'ipag'),
+                    'dpi' => config('dompdf.dpi', 72),
+                    'isHtml5ParserEnabled' => config('dompdf.isHtml5ParserEnabled', false),
+                    'isRemoteEnabled' => config('dompdf.isRemoteEnabled', false),
+                    'enable_font_subsetting' => true,
+                    'fontCache' => $fontCacheDir,
+                    'fontDir' => resource_path('fonts/'),
+                    'chroot' => base_path(),
+                    'tempDir' => $tempDir,
+                ])
+                ->loadView('postcards.pdf', [
+                    'postcardData' => $chunks[0] ?? [],
+                    'currentMonth' => $currentMonth,
+                    'currentYear' => $currentYear,
+                    'embeddedFontBase64' => $embeddedFontBase64,
+                ])
+                ->setPaper('A4', 'portrait');
         
         $filename = "postcards_{$currentYear}_{$currentMonth}_" . date('Y-m-d_H-i-s') . '.pdf';
-        
+        // If there are more than 200 postcards, inform user in filename; we can extend to zip later
+        if (count($chunks) > 1) {
+            $filename = "postcards_{$currentYear}_{$currentMonth}_part1_" . date('Y-m-d_H-i-s') . '.pdf';
+        }
+
         return $pdf->download($filename);
     }
 }

@@ -1,0 +1,10 @@
+{
+    "ipag": {
+        "normal": "E:\\current task\\laravel-customer-management\\resources\\fonts\/\/ipag_normal_b891386d4d6219f6660c02a1f46d58ef",
+        "bold": "ipag_bold_b891386d4d6219f6660c02a1f46d58ef"
+    },
+    "notosansjp": {
+        "normal": "E:\\current task\\laravel-customer-management\\resources\\fonts\/\/notosansjp_normal_b891386d4d6219f6660c02a1f46d58ef",
+        "bold": "notosansjp_bold_b891386d4d6219f6660c02a1f46d58ef"
+    }
+}
