@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,6 +18,7 @@
             align-items: center;
             font-family: 'Noto Sans JP', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
         }
+
         .register-card {
             background: #ffffff;
             backdrop-filter: blur(10px);
@@ -26,6 +28,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="row justify-content-center">
@@ -40,14 +43,15 @@
 
                         <form method="POST" action="{{ route('register') }}">
                             @csrf
-                            
+
                             <div class="row">
                                 <div class="col-md-12 mb-3">
                                     <label for="name" class="form-label">氏名</label>
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="fas fa-user"></i></span>
-                                        <input type="text" class="form-control @error('name') is-invalid @enderror" 
-                                               id="name" name="name" value="{{ old('name') }}" required autofocus>
+                                        <input type="text" class="form-control @error('name') is-invalid @enderror"
+                                            id="name" name="name" value="{{ old('name') }}" required
+                                            autofocus>
                                     </div>
                                     @error('name')
                                         <div class="invalid-feedback d-block">{{ $message }}</div>
@@ -58,8 +62,8 @@
                                     <label for="email" class="form-label">メールアドレス</label>
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="fas fa-envelope"></i></span>
-                                        <input type="email" class="form-control @error('email') is-invalid @enderror" 
-                                               id="email" name="email" value="{{ old('email') }}" required>
+                                        <input type="email" class="form-control @error('email') is-invalid @enderror"
+                                            id="email" name="email" value="{{ old('email') }}" required>
                                     </div>
                                     @error('email')
                                         <div class="invalid-feedback d-block">{{ $message }}</div>
@@ -70,8 +74,9 @@
                                     <label for="password" class="form-label">パスワード</label>
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                                        <input type="password" class="form-control @error('password') is-invalid @enderror" 
-                                               id="password" name="password" required>
+                                        <input type="password"
+                                            class="form-control @error('password') is-invalid @enderror" id="password"
+                                            name="password" required>
                                     </div>
                                     @error('password')
                                         <div class="invalid-feedback d-block">{{ $message }}</div>
@@ -82,26 +87,9 @@
                                     <label for="password_confirmation" class="form-label">パスワード確認</label>
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                                        <input type="password" class="form-control" 
-                                               id="password_confirmation" name="password_confirmation" required>
+                                        <input type="password" class="form-control" id="password_confirmation"
+                                            name="password_confirmation" required>
                                     </div>
-                                </div>
-
-                                <div class="col-md-12 mb-4">
-                                    <label for="role" class="form-label">権限</label>
-                                    <div class="input-group">
-                                        <span class="input-group-text"><i class="fas fa-user-tag"></i></span>
-                                        <select class="form-select @error('role') is-invalid @enderror" 
-                                                id="role" name="role" required>
-                                            <option value="">権限を選択</option>
-                                            <option value="user" {{ old('role') == 'user' ? 'selected' : '' }}>ユーザー</option>
-                                            <option value="manager" {{ old('role') == 'manager' ? 'selected' : '' }}>マネージャー</option>
-                                            <option value="admin" {{ old('role') == 'admin' ? 'selected' : '' }}>管理者</option>
-                                        </select>
-                                    </div>
-                                    @error('role')
-                                        <div class="invalid-feedback d-block">{{ $message }}</div>
-                                    @enderror
                                 </div>
                             </div>
 
@@ -113,7 +101,7 @@
                         </form>
 
                         <div class="text-center mt-4">
-                            <p class="text-muted">すでにアカウントをお持ちの方は 
+                            <p class="text-muted">すでにアカウントをお持ちの方は
                                 <a href="{{ route('login') }}" class="text-decoration-none">こちらからログイン</a>
                             </p>
                         </div>
@@ -125,4 +113,5 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
-</html> 
+
+</html>

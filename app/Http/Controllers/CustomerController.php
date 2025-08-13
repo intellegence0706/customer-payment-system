@@ -31,7 +31,6 @@ class CustomerController extends Controller
             $query->where('gender', $request->get('gender'));
         }
 
-        // Filter by bank
         if ($request->filled('bank_name')) {
             $query->where('bank_name', 'like', "%{$request->get('bank_name')}%");
         }
@@ -65,8 +64,7 @@ class CustomerController extends Controller
             'customer_number' => 'required|string|max:50|unique:customers',
             'bank_note' => 'nullable|string',
         ]);
-
-        Log::info("Customer information", $validated);
+        
         Customer::create($validated);
         return redirect()->route('customers.index')
             ->with('success', '顧客情報が正常に追加されました。');
@@ -133,13 +131,11 @@ class CustomerController extends Controller
         if ($request->filled('gender')) {
             $query->where('gender', $request->get('gender'));
         }
-
         if ($request->filled('bank_name')) {
             $query->where('bank_name', 'like', "%{$request->get('bank_name')}%");
         }
 
         $customers = $query->get();
-
         $filename = '顧客_' . date('Y-m-d_H-i-s') . '.csv';
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',

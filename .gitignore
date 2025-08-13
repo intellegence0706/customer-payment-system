@@ -11,8 +11,14 @@
 .phpunit.result.cache
 Homestead.json
 Homestead.yaml
-npm-debug.log
-yarn-error.log
+
+
+bootstrap/cache/*
+storage/app/public
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/logs/*
 
 
 # next.js

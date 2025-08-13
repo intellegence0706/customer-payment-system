@@ -155,9 +155,9 @@ class PaymentController extends Controller
             'customer_id' => 'required|exists:customers,id',
             'payment_month' => 'required|integer|between:1,12',
             'payment_year' => 'required|integer|min:2020',
-            'amount' => 'required|numeric|min:0',
+	            'amount' => 'required|numeric|min:0|max:99999999.99',
             'payment_date' => 'required|date',
-            'receipt_number' => 'nullable|string|max:50',
+            'receipt_number' => 'nullable|string|max:50',   
             'status' => 'required|in:pending,completed,failed',
             'notes' => 'nullable|string',
         ]);
@@ -165,7 +165,7 @@ class PaymentController extends Controller
         Payment::create($validated);
 
         return redirect()->route('payments.index')
-            ->with('success', 'Payment recorded successfully.');
+            ->with('success', 'お支払いが成功しました。');
     }
 
     public function show(Payment $payment)
@@ -185,7 +185,8 @@ class PaymentController extends Controller
             'customer_id' => 'required|exists:customers,id',
             'payment_month' => 'required|integer|between:1,12',
             'payment_year' => 'required|integer|min:2020',
-            'amount' => 'required|numeric|min:0',
+	            // Ensure amount fits into DECIMAL(10,2)
+	            'amount' => 'required|numeric|min:0|max:99999999.99',
             'payment_date' => 'required|date',
             'receipt_number' => 'nullable|string|max:50',
             'status' => 'required|in:pending,completed,failed',
@@ -270,8 +271,15 @@ class PaymentController extends Controller
                         continue;
                     }
                     
-                    if (empty($data[1]) || !is_numeric($data[1])) {
+                    // Normalize amount: remove currency symbols and commas
+                    $rawAmount = isset($data[1]) ? preg_replace('/[^0-9.\-]/', '', (string) $data[1]) : '';
+                    if ($rawAmount === '' || !is_numeric($rawAmount)) {
                         $errors[] = "Row {$rowNumber}: Valid amount is required.";
+                        continue;
+                    }
+                    $amount = (float) $rawAmount;
+	                    if ($amount < 0 || $amount > 99999999.99) {
+                        $errors[] = "Row {$rowNumber}: Amount out of allowed range.";
                         continue;
                     }
                     
@@ -308,7 +316,7 @@ class PaymentController extends Controller
                         'customer_id' => $customer->id,
                         'payment_month' => $request->payment_month,
                         'payment_year' => $request->payment_year,
-                        'amount' => floatval($data[1]),
+                        'amount' => $amount,
                         'payment_date' => $paymentDate,
                         'receipt_number' => $data[3] ?? null,
                         'status' => 'completed',
@@ -345,7 +353,7 @@ class PaymentController extends Controller
 
             if (isset($path) && Storage::exists($path)) {
                 Storage::delete($path);
-            }
+            } 
             
             return redirect()->back()
                 ->withInput()
