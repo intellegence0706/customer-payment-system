@@ -20,7 +20,10 @@
         .payment-info,
         .footer,
         .logo {
-            font-family: 'IPAMincho', 'Noto Sans JP', 'IPAGothic', sans-serif !important;
+            font-family: "NotoSansJP";
+            font-weight: 400;
+            font-style: normal;
+            src: url("{{ storage_path('fonts/NotoSansJP.ttf') }}") format("truetype");
         }
 
         .postcard {
@@ -58,7 +61,7 @@
 
         .footer {
             text-align: center;
-            margin-top: 15px;
+            margin-top: 35px;
             font-size: 10px;
         }
 
@@ -72,42 +75,65 @@
 <body>
     @foreach ($data as $row)
         <div class="postcard">
-            <div class="logo">
-                <h2>顧客管理システム</h2>
-            </div>
             <div class="header">
-                <h3>はがき印刷データ</h3>
+                <h3>
+                    @if (!empty($row['bill_title']))
+                        {{ $row['bill_title'] }} 請求書
+                    @else
+                        {{ $year }}年{{ $month }}月分 請求書
+                    @endif
+                </h3>
             </div>
             <div class="customer-info">
-                <strong>{{ $row['recipient_name'] }}</strong><br>
-                顧客番号: {{ $row['customer_number'] }}<br>
-                {{ $row['address'] }}<br>
-                @if ($row['postal_code'])
-                    郵便番号: {{ $row['postal_code'] }}
-                @endif
+                <strong>{{ $row['recipient_name'] }}</strong>
+                @if (!empty($row['customer_number']))<span> / No. {{ $row['customer_number'] }}</span>@endif
+            </div>
+            <div>
+                <p>下記のとおりご請求申し上げます。</p>
+                <div>
+                    ご請求金額（税込）
+                    <span class="amount">¥{{ number_format((float)($row['amount_total'] ?? 0)) }}</span>
+                </div>
+            </div>
+            <div style="border:1px solid #000; border-radius:3px; padding:6px; margin:10px 0; display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-size:10px; color:#666;">※振替日</div>
+                <div style="font-weight:bold;">{{ $row['transfer_date'] }}</div>
             </div>
             <div class="payment-info">
-                <strong>当月 ({{ $row['current_year'] }}年{{ $row['current_month'] }}月):</strong><br>
-                @if ($row['current_amount'])
-                    請求額: <span class="amount"> {{ number_format($row['current_amount'], 2) }}</span><br>
-                    入金日: {{ $row['current_payment_date'] }}<br>
-                    受付番号: {{ $row['current_receipt_number'] }}
-                @else
-                    <em>当月の請求記録はありません</em>
-                @endif
-            </div>
-            <div class="payment-info">
-                <strong>前月 ({{ $row['previous_year'] }}年{{ $row['previous_month'] }}月):</strong><br>
-                @if ($row['previous_amount'])
-                    受付番号: {{ $row['previous_receipt_number'] }}<br>
-                    入金額: {{ number_format($row['previous_amount'], 2) }}
-                @else
-                    <em>前月の入金記録なし</em>
-                @endif
+                <strong>明細</strong>
+                <table style="width:100%; border-collapse:collapse; font-variant-numeric: tabular-nums;">
+                    <tbody>
+                        @foreach (($row['items'] ?? []) as $it)
+                            <tr>
+                                <td style="width:20%; border-bottom:1px solid #ddd;">{{ $it['date'] }}</td>
+                                <td style="border-bottom:1px solid #ddd;">{{ $it['name'] }}</td>
+                                <td style="width:25%; text-align:right; border-bottom:1px solid #ddd;">¥{{ number_format((float)$it['amount']) }}</td>
+                            </tr>
+                        @endforeach
+                        @if (($row['transfer_fee'] ?? 0) > 0)
+                            <tr>
+                                <td style="border-bottom:1px solid #ddd;">&nbsp;</td>
+                                <td style="border-bottom:1px solid #ddd;">振替手数料</td>
+                                <td style="text-align:right; border-bottom:1px solid #ddd;">¥{{ number_format((float)$row['transfer_fee']) }}</td>
+                            </tr>
+                        @endif
+                        @php
+                            $lineSum = 0.0;
+                            foreach (($row['items'] ?? []) as $it) { $lineSum += (float)($it['amount'] ?? 0); }
+                            $lineSum += (float)($row['transfer_fee'] ?? 0);
+                        @endphp
+                        @if ($lineSum > 0)
+                            <tr>
+                                <td style="border-top:1px solid #000;">&nbsp;</td>
+                                <td style="border-top:1px solid #000; text-align:right; font-weight:bold;">合計</td>
+                                <td style="border-top:1px solid #000; text-align:right; font-weight:bold;">¥{{ number_format($lineSum) }}</td>
+                            </tr>
+                        @endif
+                    </tbody>
+                </table>
             </div>
             <div class="footer">
-                <p>ご不明点は事務所までお問い合わせください。</p>
-                <p>{{ now()->format('Y年n月j日') }} 作成</p>
+                <p>{{ now()->format('Y-m-d') }}</p>
             </div>
         </div>
     @endforeach

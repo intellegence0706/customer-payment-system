@@ -3,15 +3,40 @@
 namespace App\Http\Controllers;
 
 use App\Models\Payment;
+use App\Models\PaymentItem;
 use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 
 class PaymentController extends Controller
 {
-    private function loadJapaneseFontBase64(): ?string
+    /**
+     * Calculate totals for a set of items.
+     * Returns [subtotal, tax_total, gross_total].
+     */
+    private function computeTotalsForItems($items): array
+    {
+        if ($items instanceof Collection) {
+            $collection = $items;
+        } else {
+            $collection = collect($items ?? []);
+        }
+        $subtotal = (float) $collection->sum(function ($it) {
+            return (float) ($it->amount ?? (($it->unit_price ?? 0) * ($it->quantity ?? 0)));
+        });
+        $taxTotal = (float) $collection->sum(function ($it) {
+            return (float) ($it->tax_amount ?? 0);
+        });
+        return [
+            'subtotal' => $subtotal,
+            'tax_total' => $taxTotal,
+            'gross_total' => $subtotal + $taxTotal,
+        ];
+    }
+        private function loadJapaneseFontBase64(): ?string
     {
         $candidateFontPaths = [
             resource_path('fonts/NotoSansJP.ttf'),
@@ -124,6 +149,48 @@ class PaymentController extends Controller
         return $rows;
     }
 
+    /**
+     * Build richer data for print-PDF including line items and transfer date.
+     */
+    private function buildPostcardPrintPdfData(int $month, int $year): array
+    {
+        $payments = Payment::with(['customer', 'items' => function($q){ $q->orderBy('item_date'); }])
+            ->where('payment_month', $month)
+            ->where('payment_year', $year)
+            ->orderBy('payment_date')
+            ->get();
+
+        $result = [];
+        foreach ($payments as $payment) {
+            $items = [];
+            $transferFee = 0.0;
+            foreach ($payment->items as $it) {
+                $amount = (float)($it->amount ?? (($it->unit_price ?? 0) * ($it->quantity ?? 1)));
+                $label = $it->product_name ?? '';
+                // Heuristic: capture transfer fee if product name looks like fee or marked as other charges
+                if (stripos((string)$label, 'fee') !== false || ($it->category ?? '') === 'other_charges') {
+                    $transferFee += $amount;
+                }
+                $items[] = [
+                    'date' => $it->item_date ? (is_string($it->item_date) ? date('n/j', strtotime($it->item_date)) : $it->item_date->format('n/j')) : '',
+                    'name' => $label,
+                    'amount' => $amount,
+                ];
+            }
+
+            $result[] = [
+                'bill_title' => date('F Y', mktime(0,0,0,$month,1,$year)),
+                'recipient_name' => $payment->customer->name ?? '-',
+                'customer_number' => $payment->customer->customer_number ?? '',
+                'amount_total' => (float)$payment->amount,
+                'transfer_date' => $payment->payment_date ? ($payment->payment_date instanceof \Carbon\Carbon ? $payment->payment_date->format('F j, Y') : date('F j, Y', strtotime($payment->payment_date))) : '',
+                'items' => $items,
+                'transfer_fee' => $transferFee,
+            ];
+        }
+        return $result;
+    }
+
     public function index(Request $request)
     {
         $query = Payment::with('customer');
@@ -160,9 +227,66 @@ class PaymentController extends Controller
             'receipt_number' => 'nullable|string|max:50',   
             'status' => 'required|in:pending,completed,failed',
             'notes' => 'nullable|string',
+            'items' => 'nullable|array',
+            'items.*.row_no' => 'nullable|integer|min:1',
+            'items.*.item_date' => 'nullable|date',
+            'items.*.product_code' => 'nullable|string|max:50',
+            'items.*.product_name' => 'required_with:items|string|max:255',
+            'items.*.unit_price' => 'nullable|numeric',
+            'items.*.quantity' => 'nullable|numeric',
+            'items.*.amount' => 'nullable|numeric',
+            'items.*.tax_rate' => 'nullable|numeric',
+            'items.*.tax_amount' => 'nullable|numeric',
+            'items.*.category' => 'nullable|string|max:50',
+            'items.*.notes' => 'nullable|string',
         ]);
 
-        Payment::create($validated);
+        $payment = Payment::create($validated);
+
+        // Optional line items aggregation to totals
+        $subtotal = 0.0; $taxTotal = 0.0; $otherFees = 0.0;
+        if ($request->filled('items')) {
+            foreach ($request->input('items') as $index => $item) {
+                if (!isset($item['product_name']) || $item['product_name'] === '') {
+                    continue;
+                }
+                $unitPrice = (float)($item['unit_price'] ?? 0);
+                $quantity = (float)($item['quantity'] ?? 1);
+                $amount = $item['amount'] !== null && $item['amount'] !== ''
+                    ? (float)$item['amount']
+                    : $unitPrice * $quantity;
+                $taxRate = (float)($item['tax_rate'] ?? 0);
+                $calculatedTax = (float)($item['tax_amount'] ?? round($amount * $taxRate / 100, 2));
+
+                PaymentItem::create([
+                    'payment_id' => $payment->id,
+                    'row_no' => $item['row_no'] ?? ($index + 1),
+                    'item_date' => $item['item_date'] ?? null,
+                    'product_code' => $item['product_code'] ?? null,
+                    'product_name' => $item['product_name'],
+                    'unit_price' => $unitPrice,
+                    'quantity' => $quantity,
+                    'amount' => $amount,
+                    'tax_rate' => $taxRate,
+                    'tax_amount' => $calculatedTax,
+                    'category' => $item['category'] ?? null,
+                    'notes' => $item['notes'] ?? null,
+                ]);
+
+                $subtotal += $amount;
+                $taxTotal += $calculatedTax;
+                if (($item['category'] ?? '') === 'other_charges') {
+                    $otherFees += $amount + $calculatedTax;
+                }
+            }
+        }
+
+        $payment->update([
+            'subtotal_amount' => $subtotal ?: null,
+            'tax_total' => $taxTotal ?: null,
+            'other_fees_total' => $otherFees ?: null,
+            'grand_total' => ($subtotal + $taxTotal + $otherFees) ?: null,
+        ]);
 
         return redirect()->route('payments.index')
             ->with('success', 'お支払いが成功しました。');
@@ -170,7 +294,26 @@ class PaymentController extends Controller
 
     public function show(Payment $payment)
     {
-        return view('payments.show', compact('payment'));
+        $payment->load(['customer', 'items' => function ($q) {
+            $q->orderBy('row_no');
+        }]);
+
+        $items = $payment->items ?? collect();
+        $grouped = [
+            'current' => $items->filter(function ($it) { return ($it->category ?? '') === '' || $it->category === null; }),
+            'previous' => $items->filter(function ($it) { return ($it->category ?? '') === 'previous_balance'; }),
+            'other' => $items->filter(function ($it) { return ($it->category ?? '') === 'other_charges'; }),
+            'notice' => $items->filter(function ($it) { return ($it->category ?? '') === 'notice'; }),
+        ];
+
+        $sectionTotals = [
+            'current' => $this->computeTotalsForItems($grouped['current']),
+            'previous' => $this->computeTotalsForItems($grouped['previous']),
+            'other' => $this->computeTotalsForItems($grouped['other']),
+            'notice' => $this->computeTotalsForItems($grouped['notice']),
+        ];
+
+        return view('payments.show', compact('payment', 'grouped', 'sectionTotals'));
     }
 
     public function edit(Payment $payment)
@@ -191,9 +334,67 @@ class PaymentController extends Controller
             'receipt_number' => 'nullable|string|max:50',
             'status' => 'required|in:pending,completed,failed',
             'notes' => 'nullable|string',
+            'items' => 'nullable|array',
+            'items.*.id' => 'nullable|integer|exists:payment_items,id',
+            'items.*.row_no' => 'nullable|integer|min:1',
+            'items.*.item_date' => 'nullable|date',
+            'items.*.product_code' => 'nullable|string|max:50',
+            'items.*.product_name' => 'required_with:items|string|max:255',
+            'items.*.unit_price' => 'nullable|numeric',
+            'items.*.quantity' => 'nullable|numeric',
+            'items.*.amount' => 'nullable|numeric',
+            'items.*.tax_rate' => 'nullable|numeric',
+            'items.*.tax_amount' => 'nullable|numeric',
+            'items.*.category' => 'nullable|string|max:50',
+            'items.*.notes' => 'nullable|string',
         ]);
 
         $payment->update($validated);
+
+        // Sync items: simple replace strategy for clarity
+        $payment->items()->delete();
+        $subtotal = 0.0; $taxTotal = 0.0; $otherFees = 0.0;
+        if ($request->filled('items')) {
+            foreach ($request->input('items') as $index => $item) {
+                if (!isset($item['product_name']) || $item['product_name'] === '') {
+                    continue;
+                }
+                $unitPrice = (float)($item['unit_price'] ?? 0);
+                $quantity = (float)($item['quantity'] ?? 1);
+                $amount = $item['amount'] !== null && $item['amount'] !== ''
+                    ? (float)$item['amount']
+                    : $unitPrice * $quantity;
+                $taxRate = (float)($item['tax_rate'] ?? 0);
+                $calculatedTax = (float)($item['tax_amount'] ?? round($amount * $taxRate / 100, 2));
+
+                $payment->items()->create([
+                    'row_no' => $item['row_no'] ?? ($index + 1),
+                    'item_date' => $item['item_date'] ?? null,
+                    'product_code' => $item['product_code'] ?? null,
+                    'product_name' => $item['product_name'],
+                    'unit_price' => $unitPrice,
+                    'quantity' => $quantity,
+                    'amount' => $amount,
+                    'tax_rate' => $taxRate,
+                    'tax_amount' => $calculatedTax,
+                    'category' => $item['category'] ?? null,
+                    'notes' => $item['notes'] ?? null,
+                ]);
+
+                $subtotal += $amount;
+                $taxTotal += $calculatedTax;
+                if (($item['category'] ?? '') === 'other_charges') {
+                    $otherFees += $amount + $calculatedTax;
+                }
+            }
+        }
+
+        $payment->update([
+            'subtotal_amount' => $subtotal ?: null,
+            'tax_total' => $taxTotal ?: null,
+            'other_fees_total' => $otherFees ?: null,
+            'grand_total' => ($subtotal + $taxTotal + $otherFees) ?: null,
+        ]);
 
         return redirect()->route('payments.index')
             ->with('success', 'Payment updated successfully.');
@@ -492,6 +693,64 @@ class PaymentController extends Controller
             fclose($file);
         };
         return response()->stream($callback, 200, $headers);       
+    }
+
+    public function exportPostcardPrintPdf(Request $request)
+    {
+        // Optional: generate for a specific payment when payment_id is provided
+        $paymentId = $request->get('payment_id');
+        if ($paymentId) {
+            $payment = Payment::with(['customer', 'items' => function($q){ $q->orderBy('item_date'); }])->find($paymentId);
+            if (!$payment) {
+                return redirect()->back()->with('error', '指定された入金が見つかりませんでした。');
+            }
+            $month = (int) ($payment->payment_month ?? now()->month);
+            $year = (int) ($payment->payment_year ?? now()->year);
+            $rows = [];
+            $transferFee = 0.0;
+            foreach ($payment->items as $it) {
+                $amount = (float)($it->amount ?? (($it->unit_price ?? 0) * ($it->quantity ?? 1)));
+                $label = $it->product_name ?? '';
+                if (stripos((string)$label, 'fee') !== false || ($it->category ?? '') === 'other_charges') {
+                    $transferFee += $amount;
+                }
+                $rows[] = [
+                    'date' => $it->item_date ? (is_string($it->item_date) ? date('n/j', strtotime($it->item_date)) : $it->item_date->format('n/j')) : '',
+                    'name' => $label,
+                    'amount' => $amount,
+                ];
+            }
+            $data = [[
+                'bill_title' => date('F Y', mktime(0,0,0,$month,1,$year)),
+                'recipient_name' => $payment->customer->name ?? '-',
+                'customer_number' => $payment->customer->customer_number ?? '',
+                'amount_total' => (float)$payment->amount,
+                'transfer_date' => $payment->payment_date ? ($payment->payment_date instanceof \Carbon\Carbon ? $payment->payment_date->format('F j, Y') : date('F j, Y', strtotime($payment->payment_date))) : '',
+                'items' => $rows,
+                'transfer_fee' => $transferFee,
+            ]];
+        } else {
+            $month = (int) $request->get('month');
+            $year = (int) $request->get('year');
+            if (!$month || $month < 1 || $month > 12 || !$year || $year < 2020) {
+                return redirect()->back()->with('error', '有効な月と年を選択してください。');
+            }
+            $data = $this->buildPostcardPrintPdfData($month, $year);
+        }
+
+        \PDF::setOptions([
+            'isHtml5ParserEnabled' => true,
+            'isRemoteEnabled' => true,
+            'defaultFont' => 'NotoSansJP',
+            'dpi' => 96,
+            'fontDir' => base_path('resources/fonts'),
+            'fontCache' => storage_path('fonts'),
+        ]);
+
+        $pdf = \PDF::loadView('postcards.print-pdf', [ 'data' => $data, 'month' => $month, 'year' => $year ])
+            ->setPaper('a4');
+        $filename = sprintf('はがき印刷_%04d_%02d_%s.pdf', (int)$year, (int)$month, date('Y-m-d_H-i-s'));
+        return $pdf->download($filename);
     }
 
    

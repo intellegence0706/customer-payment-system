@@ -11,8 +11,8 @@
                 <a href="{{ route('payments.export-csv') }}?month={{ $currentMonth }}&year={{ $currentYear }}" class="btn btn-outline-success">
                     <i class="fas fa-download me-1"></i> CSVエクスポート
                 </a>
-                <a href="{{ route('payments.export-pdf') }}?month={{ $currentMonth }}&year={{ $currentYear }}" class="btn btn-outline-danger">
-                    <i class="fas fa-file-pdf me-1"></i> PDFエクスポート
+                <a href="{{ route('postcards.print.pdf') }}?month={{ $currentMonth }}&year={{ $currentYear }}" class="btn btn-danger">
+                    <i class="fas fa-print me-1"></i> 印刷用PDF
                 </a>
             </div>
         </div>

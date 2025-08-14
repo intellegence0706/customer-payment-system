@@ -11,7 +11,7 @@
  </div>
 
  <div class="row">
-    <div class="col-lg-8">
+    <div class="col-lg-12">
         <form method="POST" action="{{ route('payments.update', $payment) }}">
             @csrf
             @method('PUT')
@@ -91,6 +91,88 @@
                     </div>
                 </div>
             </div>
+
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">明細（利用料金・その他徴収）</h5>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="addRowBtn"><i class="fas fa-plus"></i> 行を追加</button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle" id="itemsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 60px;">No</th>
+                                    <th style="width: 130px;">日付</th>
+                                    <th style="width: 140px;">商品コード</th>
+                                    <th style="width: 240px;">商品名</th>
+                                    <th style="width: 120px;">数量</th>
+                                    <th style="width: 140px;">単価</th>
+                                    <th style="width: 140px;">金額</th>
+                                    <th style="width: 120px;">税率(%)</th>
+                                    <th style="width: 140px;">税額</th>
+                                    <th style="width: 160px;">区分</th>
+                                    <th style="width: 60px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($payment->items as $i => $item)
+                                <tr>
+                                    <td><input type="number" class="form-control form-control-sm" name="items[{{ $i }}][row_no]" value="{{ $item->row_no }}"></td>
+                                    <td><input type="date" class="form-control form-control-sm" name="items[{{ $i }}][item_date]" value="{{ optional($item->item_date)->format('Y-m-d') }}"></td>
+                                    <td><input type="text" class="form-control form-control-sm" name="items[{{ $i }}][product_code]" value="{{ $item->product_code }}"></td>
+                                    <td><input type="text" class="form-control form-control-sm" name="items[{{ $i }}][product_name]" value="{{ $item->product_name }}" placeholder="例：車イスレンタル" required></td>
+                                    <td><input type="number" step="0.01" class="form-control form-control-sm item-qty" name="items[{{ $i }}][quantity]" value="{{ $item->quantity }}"></td>
+                                    <td><input type="number" step="0.01" class="form-control form-control-sm item-unit" name="items[{{ $i }}][unit_price]" value="{{ $item->unit_price }}"></td>
+                                    <td><input type="number" step="0.01" class="form-control form-control-sm item-amount" name="items[{{ $i }}][amount]" value="{{ $item->amount }}" readonly></td>
+                                    <td><input type="number" step="0.01" class="form-control form-control-sm item-taxrate" name="items[{{ $i }}][tax_rate]" value="{{ $item->tax_rate }}"></td>
+                                    <td><input type="number" step="0.01" class="form-control form-control-sm item-tax" name="items[{{ $i }}][tax_amount]" value="{{ $item->tax_amount }}" readonly></td>
+                                    <td>
+                                        <select class="form-select form-select-sm item-category" name="items[{{ $i }}][category]">
+                                            <option value="" {{ $item->category===''? 'selected':'' }}>通常</option>
+                                            <option value="other_charges" {{ $item->category==='other_charges'? 'selected':'' }}>その他徴収</option>
+                                            <option value="notice" {{ $item->category==='notice'? 'selected':'' }}>お知らせ</option>
+                                            <option value="previous_balance" {{ $item->category==='previous_balance'? 'selected':'' }}>前月繰越</option>
+                                        </select>
+                                    </td>
+                                    <td><button type="button" class="btn btn-sm btn-outline-danger delRow">×</button></td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="row g-3 mt-3">
+                        <div class="col-md-3 ms-auto">
+                            <label class="form-label">小計</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="text" readonly class="form-control" id="subtotal_amount" name="subtotal_amount" value="{{ $payment->subtotal_amount }}">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">税額合計</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="text" readonly class="form-control" id="tax_total" name="tax_total" value="{{ $payment->tax_total }}">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">その他合計</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="text" readonly class="form-control" id="other_fees_total" name="other_fees_total" value="{{ $payment->other_fees_total }}">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">総合計</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="text" readonly class="form-control" id="grand_total" name="grand_total" value="{{ $payment->grand_total }}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                 <a href="{{ route('payments.index') }}" class="btn btn-outline-secondary me-md-2">キャンセル</a>
                 <button type="submit" class="btn btn-primary">
@@ -100,6 +182,84 @@
         </form>
     </div>
  </div>
+@endsection
+
+@section('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const tbody = document.querySelector('#itemsTable tbody');
+  const addBtn = document.getElementById('addRowBtn');
+
+  function toNumber(v){
+    const n = parseFloat((v||'').toString().replace(/[^0-9.\-]/g,''));
+    return isNaN(n) ? 0 : n;
+  }
+
+  function recalcTotals(){
+    let subtotal=0, taxTotal=0, otherTotal=0;
+    tbody.querySelectorAll('tr').forEach((tr) => {
+      const qty = toNumber(tr.querySelector('.item-qty').value);
+      const unit = toNumber(tr.querySelector('.item-unit').value);
+      const taxRate = toNumber(tr.querySelector('.item-taxrate').value);
+      const category = tr.querySelector('.item-category').value;
+      const amount = qty * unit;
+      tr.querySelector('.item-amount').value = amount.toFixed(2);
+      const tax = Math.round((amount * taxRate) )/100; // percentage
+      tr.querySelector('.item-tax').value = tax.toFixed(2);
+      subtotal += amount;
+      taxTotal += tax;
+      if(category === 'other_charges'){ otherTotal += amount + tax; }
+    });
+    document.getElementById('subtotal_amount').value = subtotal.toFixed(2);
+    document.getElementById('tax_total').value = taxTotal.toFixed(2);
+    document.getElementById('other_fees_total').value = otherTotal.toFixed(2);
+    document.getElementById('grand_total').value = (subtotal + taxTotal + otherTotal).toFixed(2);
+    const amountInput = document.getElementById('amount');
+    if (amountInput) amountInput.value = (subtotal + taxTotal + otherTotal).toFixed(2);
+  }
+
+  function addRow(data={}){
+    const index = tbody.children.length;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type=\"number\" class=\"form-control form-control-sm\" name=\"items[${index}][row_no]\" value=\"${index+1}\"></td>
+      <td><input type=\"date\" class=\"form-control form-control-sm\" name=\"items[${index}][item_date]\" value=\"${data.item_date||''}\"></td>
+      <td><input type=\"text\" class=\"form-control form-control-sm\" name=\"items[${index}][product_code]\" value=\"${data.product_code||''}\"></td>
+      <td><input type=\"text\" class=\"form-control form-control-sm\" name=\"items[${index}][product_name]\" value=\"${data.product_name||''}\" placeholder=\"例：車イスレンタル\" required></td>
+      <td><input type=\"number\" step=\"0.01\" class=\"form-control form-control-sm item-qty\" name=\"items[${index}][quantity]\" value=\"${data.quantity||1}\"></td>
+      <td><input type=\"number\" step=\"0.01\" class=\"form-control form-control-sm item-unit\" name=\"items[${index}][unit_price]\" value=\"${data.unit_price||0}\"></td>
+      <td><input type=\"number\" step=\"0.01\" class=\"form-control form-control-sm item-amount\" name=\"items[${index}][amount]\" value=\"${data.amount||0}\" readonly></td>
+      <td><input type=\"number\" step=\"0.01\" class=\"form-control form-control-sm item-taxrate\" name=\"items[${index}][tax_rate]\" value=\"${data.tax_rate||0}\"></td>
+      <td><input type=\"number\" step=\"0.01\" class=\"form-control form-control-sm item-tax\" name=\"items[${index}][tax_amount]\" value=\"${data.tax_amount||0}\" readonly></td>
+      <td>
+        <select class=\"form-select form-select-sm item-category\" name=\"items[${index}][category]\">
+          <option value=\"\">通常</option>
+          <option value=\"other_charges\">その他徴収</option>
+          <option value=\"notice\">お知らせ</option>
+          <option value=\"previous_balance\">前月繰越</option>
+        </select>
+      </td>
+      <td><button type=\"button\" class=\"btn btn-sm btn-outline-danger delRow\">×</button></td>
+    `;
+    tbody.appendChild(tr);
+    tr.addEventListener('input', (e)=>{
+      if(e.target.matches('.item-qty, .item-unit, .item-taxrate')) recalcTotals();
+    });
+    tr.querySelector('.delRow').addEventListener('click', ()=>{ tr.remove(); recalcTotals(); });
+    recalcTotals();
+  }
+
+  document.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
+    tr.addEventListener('input', (e)=>{
+      if(e.target.matches('.item-qty, .item-unit, .item-taxrate')) recalcTotals();
+    });
+    tr.querySelector('.delRow').addEventListener('click', ()=>{ tr.remove(); recalcTotals(); });
+  });
+
+  addBtn.addEventListener('click', ()=> addRow());
+  recalcTotals();
+});
+</script>
 @endsection
 
 

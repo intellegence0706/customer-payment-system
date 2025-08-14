@@ -48,6 +48,9 @@
                             </td>
                             <td>
                                 <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{{ route('payments.show', $payment) }}" class="btn btn-outline-info">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
                                     <a href="{{ route('payments.edit', $payment) }}" class="btn btn-outline-warning">
                                         <i class="fas fa-edit"></i>
                                     </a>

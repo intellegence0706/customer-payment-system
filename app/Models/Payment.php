@@ -14,6 +14,10 @@ class Payment extends Model
         'payment_month',
         'payment_year',
         'amount',
+        'subtotal_amount',
+        'tax_total',
+        'other_fees_total',
+        'grand_total',
         'payment_date',
         'receipt_number',
         'status',
@@ -23,6 +27,10 @@ class Payment extends Model
     protected $casts = [
         'payment_date' => 'date',
         'amount' => 'decimal:2',
+        'subtotal_amount' => 'decimal:2',
+        'tax_total' => 'decimal:2',
+        'other_fees_total' => 'decimal:2',
+        'grand_total' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -30,5 +38,10 @@ class Payment extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function items()
+    {
+        return $this->hasMany(PaymentItem::class);
     }
 }

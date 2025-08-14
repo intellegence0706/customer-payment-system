@@ -70,6 +70,21 @@
                                     @enderror
                                 </div>
 
+                                <div class="col-md-12 mb-3">
+                                    <label for="role" class="form-label">役割</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="fas fa-user-shield"></i></span>
+                                        <select id="role" name="role" class="form-select @error('role') is-invalid @enderror" required>
+                                            <option value="user" {{ old('role') == 'user' ? 'selected' : '' }}>ユーザー</option>
+                                            <option value="manager" {{ old('role') == 'manager' ? 'selected' : '' }}>マネージャー</option>
+                                            <option value="admin" {{ old('role') == 'admin' ? 'selected' : '' }}>管理者</option>
+                                        </select>
+                                    </div>
+                                    @error('role')
+                                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                                    @enderror
+                                </div>
+
                                 <div class="col-md-6 mb-3">
                                     <label for="password" class="form-label">パスワード</label>
                                     <div class="input-group">

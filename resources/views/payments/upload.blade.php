@@ -67,7 +67,7 @@
 
                             <div class="col-md-3">
                                 <label for="payment_month" class="form-label">
-                                    Month <span class="text-danger">*</span>
+                                    月 
                                 </label>
                                 <select class="form-select @error('payment_month') is-invalid @enderror" id="payment_month"
                                     name="payment_month" required>
@@ -86,8 +86,7 @@
 
                             <div class="col-md-3">
                                 <label for="payment_year" class="form-label">
-                                    Year <span class="text-danger">*</span>
-                                </label>
+                                    年</label>
                                 <select class="form-select @error('payment_year') is-invalid @enderror" id="payment_year"
                                     name="payment_year" required>
                                     <option value="">Select Year</option>

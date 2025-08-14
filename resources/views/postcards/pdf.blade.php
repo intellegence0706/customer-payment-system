@@ -16,12 +16,7 @@
       font-style: normal;
       src: url("{{ storage_path('fonts/NotoSansJP.ttf') }}") format("truetype");
     }
-    @font-face {
-      font-family: "NotoSansJP";
-      font-weight: 700;
-      font-style: normal;
-      src: url("{{ storage_path('fonts/NotoSansJP.ttf') }}") format("truetype");
-    }
+
     {{ $fontData ? "
     @font-face{
       font-family:'jpfont';font-weight:400;font-style:normal;

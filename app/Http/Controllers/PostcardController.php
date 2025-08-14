@@ -105,10 +105,10 @@ class PostcardController extends Controller
                 ])
                 ->setPaper('A4', 'portrait');
         
-        $filename = "postcards_{$currentYear}_{$currentMonth}_" . date('Y-m-d_H-i-s') . '.pdf';
+        $filename = "はがき_{$currentYear}_{$currentMonth}_" . date('Y-m-d_H-i-s') . '.pdf';
         // If there are more than 200 postcards, inform user in filename; we can extend to zip later
         if (count($chunks) > 1) {
-            $filename = "postcards_{$currentYear}_{$currentMonth}_part1_" . date('Y-m-d_H-i-s') . '.pdf';
+            $filename = "はがき_{$currentYear}_{$currentMonth}_part1_" . date('Y-m-d_H-i-s') . '.pdf';
         }
 
         return $pdf->download($filename);

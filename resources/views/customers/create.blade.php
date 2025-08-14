@@ -11,7 +11,7 @@
 </div>
 
 <div class="row">
-    <div class="col-lg-8">
+    <div class="col-lg-12">
         <form method="POST" action="{{ route('customers.store') }}">
             @csrf
             
@@ -30,10 +30,10 @@
                             @enderror
                         </div>
                         <div class="col-md-6">
-                            <label for="ghana" class="form-label">ガーナ</label>
-                            <input type="text" class="form-control @error('ghana') is-invalid @enderror" 
-                                   id="ghana" name="ghana" value="{{ old('ghana') }}">
-                            @error('ghana')
+                            <label for="name_kana" class="form-label">氏名（カナ）</label>
+                            <input type="text" class="form-control @error('name_kana') is-invalid @enderror" 
+                                   id="name_kana" name="name_kana" value="{{ old('name_kana') }}">
+                            @error('name_kana')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
@@ -50,6 +50,14 @@
                             @enderror
                         </div>
                         <div class="col-md-4">
+                            <label for="date_of_birth" class="form-label">生年月日</label>
+                            <input type="date" class="form-control @error('date_of_birth') is-invalid @enderror" 
+                                   id="date_of_birth" name="date_of_birth" value="{{ old('date_of_birth') }}">
+                            @error('date_of_birth')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-4">
                             <label for="postal_code" class="form-label">郵便番号</label>
                             <input type="text" class="form-control @error('postal_code') is-invalid @enderror" 
                                    id="postal_code" name="postal_code" value="{{ old('postal_code') }}">
@@ -58,10 +66,34 @@
                             @enderror
                         </div>
                         <div class="col-md-4">
-                            <label for="phone_number" class="form-label">電話番号</label>
-                            <input type="text" class="form-control @error('phone_number') is-invalid @enderror" 
-                                   id="phone_number" name="phone_number" value="{{ old('phone_number') }}">
-                            @error('phone_number')
+                            <label for="prefecture" class="form-label">都道府県</label>
+                            <input type="text" class="form-control @error('prefecture') is-invalid @enderror" 
+                                   id="prefecture" name="prefecture" value="{{ old('prefecture') }}">
+                            @error('prefecture')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="city" class="form-label">市区町村</label>
+                            <input type="text" class="form-control @error('city') is-invalid @enderror" 
+                                   id="city" name="city" value="{{ old('city') }}">
+                            @error('city')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="telephone_number" class="form-label">固定電話</label>
+                            <input type="text" class="form-control @error('telephone_number') is-invalid @enderror" 
+                                   id="telephone_number" name="telephone_number" value="{{ old('telephone_number') }}">
+                            @error('telephone_number')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="mobile_number" class="form-label">携帯電話</label>
+                            <input type="text" class="form-control @error('mobile_number') is-invalid @enderror" 
+                                   id="mobile_number" name="mobile_number" value="{{ old('mobile_number') }}">
+                            @error('mobile_number')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
@@ -70,6 +102,22 @@
                             <textarea class="form-control @error('address') is-invalid @enderror" 
                                       id="address" name="address" rows="3">{{ old('address') }}</textarea>
                             @error('address')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="address_line" class="form-label">番地</label>
+                            <input type="text" class="form-control @error('address_line') is-invalid @enderror" 
+                                   id="address_line" name="address_line" value="{{ old('address_line') }}">
+                            @error('address_line')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-6">
+                            <label for="building" class="form-label">建物名</label>
+                            <input type="text" class="form-control @error('building') is-invalid @enderror" 
+                                   id="building" name="building" value="{{ old('building') }}">
+                            @error('building')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
@@ -135,6 +183,14 @@
                             @enderror
                         </div>
                         <div class="col-md-6">
+                            <label for="account_kana" class="form-label">口座名義（カナ）</label>
+                            <input type="text" class="form-control @error('account_kana') is-invalid @enderror" 
+                                   id="account_kana" name="account_kana" value="{{ old('account_kana') }}">
+                            @error('account_kana')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-6">
                             <label for="account_ghana" class="form-label">口座ガーナ</label>
                             <input type="text" class="form-control @error('account_ghana') is-invalid @enderror" 
                                    id="account_ghana" name="account_ghana" value="{{ old('account_ghana') }}">
@@ -158,6 +214,14 @@
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
+                        <div class="col-md-6">
+                            <label for="deposit_type" class="form-label">預金種別</label>
+                            <input type="text" class="form-control @error('deposit_type') is-invalid @enderror" 
+                                   id="deposit_type" name="deposit_type" value="{{ old('deposit_type') }}">
+                            @error('deposit_type')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
                         <div class="col-12">
                             <label for="bank_note" class="form-label">銀行メモ</label>
                             <textarea class="form-control @error('bank_note') is-invalid @enderror" 
@@ -168,6 +232,133 @@
                         </div>
                     </div>
                 </div>
+
+	            <!-- 請求・法務情報 -->
+	            <div class="card mb-4">
+	                <div class="card-header">
+	                    <h5 class="mb-0">請求・法務情報</h5>
+	                </div>
+	                <div class="card-body">
+	                    <div class="row g-3">
+	                        <div class="col-md-4">
+	                            <label for="payment_method" class="form-label">支払方法</label>
+	                            <select id="payment_method" name="payment_method" class="form-select @error('payment_method') is-invalid @enderror">
+	                                <option value="">選択してください</option>
+	                                <option value="bank_transfer" {{ old('payment_method') == 'bank_transfer' ? 'selected' : '' }}>銀行振込</option>
+	                                <option value="cash_on_delivery" {{ old('payment_method') == 'cash_on_delivery' ? 'selected' : '' }}>代金引換</option>
+	                                <option value="credit_card" {{ old('payment_method') == 'credit_card' ? 'selected' : '' }}>クレジットカード</option>
+	                                <option value="cash" {{ old('payment_method') == 'cash' ? 'selected' : '' }}>現金</option>
+	                            </select>
+	                            @error('payment_method')
+	                                <div class="invalid-feedback">{{ $message }}</div>
+	                            @enderror
+	                        </div>
+	                        <div class="col-md-4">
+	                            <label for="rental_fee" class="form-label">レンタル料金</label>
+	                            <div class="input-group">
+	                                <span class="input-group-text">¥</span>
+	                                <input type="number" step="0.01" min="0" class="form-control @error('rental_fee') is-invalid @enderror" id="rental_fee" name="rental_fee" value="{{ old('rental_fee') }}">
+	                            </div>
+	                            @error('rental_fee')
+	                                <div class="invalid-feedback d-block">{{ $message }}</div>
+	                            @enderror
+	                        </div>
+	                        <div class="col-md-4">
+	                            <label for="assembly_delivery_costs" class="form-label">組立/配送料</label>
+	                            <div class="input-group">
+	                                <span class="input-group-text">¥</span>
+	                                <input type="number" step="0.01" min="0" class="form-control @error('assembly_delivery_costs') is-invalid @enderror" id="assembly_delivery_costs" name="assembly_delivery_costs" value="{{ old('assembly_delivery_costs') }}">
+	                            </div>
+	                            @error('assembly_delivery_costs')
+	                                <div class="invalid-feedback d-block">{{ $message }}</div>
+	                            @enderror
+	                        </div>
+
+	                        <div class="col-md-4">
+	                            <label for="district_court" class="form-label">管轄裁判所</label>
+	                            <input type="text" class="form-control @error('district_court') is-invalid @enderror" id="district_court" name="district_court" value="{{ old('district_court') }}">
+	                            @error('district_court')
+	                                <div class="invalid-feedback">{{ $message }}</div>
+	                            @enderror
+	                        </div>
+	                        <div class="col-md-4">
+	                            <label class="form-label d-block">請求有無</label>
+	                            <div class="form-check form-switch">
+	                                <input class="form-check-input" type="checkbox" id="billable" name="billable" value="1" {{ old('billable', true) ? 'checked' : '' }}>
+	                                <label class="form-check-label" for="billable">請求対象</label>
+	                            </div>
+	                        </div>
+	                        <div class="col-md-4">
+	                            <label for="subject" class="form-label">件名</label>
+	                            <input type="text" class="form-control @error('subject') is-invalid @enderror" id="subject" name="subject" value="{{ old('subject') }}">
+	                            @error('subject')
+	                                <div class="invalid-feedback">{{ $message }}</div>
+	                            @enderror
+	                        </div>
+
+	                        <div class="col-md-6">
+	                            <label for="salesperson" class="form-label">営業担当</label>
+	                            <input type="text" class="form-control @error('salesperson') is-invalid @enderror" id="salesperson" name="salesperson" value="{{ old('salesperson') }}">
+	                            @error('salesperson')
+	                                <div class="invalid-feedback">{{ $message }}</div>
+	                            @enderror
+	                        </div>
+	                        <div class="col-md-6">
+	                            <label for="address_operator" class="form-label">住所担当者</label>
+	                            <input type="text" class="form-control @error('address_operator') is-invalid @enderror" id="address_operator" name="address_operator" value="{{ old('address_operator') }}">
+	                            @error('address_operator')
+	                                <div class="invalid-feedback">{{ $message }}</div>
+	                            @enderror
+	                        </div>
+	                    </div>
+	                </div>
+	            </div>
+
+	            <!-- スケジュール / ケア -->
+	            <div class="card mb-4">
+	                <div class="card-header">
+	                    <h5 class="mb-0">スケジュール / ケア</h5>
+	                </div>
+	                <div class="card-body">
+	                    <div class="row g-3">
+	                        <div class="col-md-4">
+	                            <label for="last_visit_date" class="form-label">最終訪問日</label>
+	                            <input type="date" class="form-control @error('last_visit_date') is-invalid @enderror" id="last_visit_date" name="last_visit_date" value="{{ old('last_visit_date') }}">
+	                            @error('last_visit_date')
+	                                <div class="invalid-feedback">{{ $message }}</div>
+	                            @enderror
+	                        </div>
+	                        <div class="col-md-4">
+	                            <label for="next_visit_date" class="form-label">次回訪問日</label>
+	                            <input type="date" class="form-control @error('next_visit_date') is-invalid @enderror" id="next_visit_date" name="next_visit_date" value="{{ old('next_visit_date') }}">
+	                            @error('next_visit_date')
+	                                <div class="invalid-feedback">{{ $message }}</div>
+	                            @enderror
+	                        </div>
+	                        <div class="col-md-4">
+	                            <label for="reception_date" class="form-label">受付日</label>
+	                            <input type="date" class="form-control @error('reception_date') is-invalid @enderror" id="reception_date" name="reception_date" value="{{ old('reception_date') }}">
+	                            @error('reception_date')
+	                                <div class="invalid-feedback">{{ $message }}</div>
+	                            @enderror
+	                        </div>
+	                        <div class="col-md-6">
+	                            <label for="residence" class="form-label">居住形態</label>
+	                            <input type="text" class="form-control @error('residence') is-invalid @enderror" id="residence" name="residence" value="{{ old('residence') }}">
+	                            @error('residence')
+	                                <div class="invalid-feedback">{{ $message }}</div>
+	                            @enderror
+	                        </div>
+	                        <div class="col-md-6">
+	                            <label for="care_manager" class="form-label">ケアマネージャー</label>
+	                            <input type="text" class="form-control @error('care_manager') is-invalid @enderror" id="care_manager" name="care_manager" value="{{ old('care_manager') }}">
+	                            @error('care_manager')
+	                                <div class="invalid-feedback">{{ $message }}</div>
+	                            @enderror
+	                        </div>
+	                    </div>
+	                </div>
+	            </div>
             </div>
 
             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
@@ -209,6 +400,19 @@ $(document).ready(function() {
             $('#branch_name').val('');
         }
     });
+
+	    // 数字のみ許可（銀行/支店コード）
+	    $('#bank_code, #branch_code').on('input', function() {
+	        this.value = this.value.replace(/\D/g, '');
+	    });
+
+	    // 請求の切替で件名の有効/無効を制御
+	    function toggleSubject() {
+	        const isBillable = $('#billable').is(':checked');
+	        $('#subject').prop('disabled', !isBillable);
+	    }
+	    $('#billable').on('change', toggleSubject);
+	    toggleSubject();
 });
 </script>
 @endsection
