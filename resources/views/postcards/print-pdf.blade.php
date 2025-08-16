@@ -4,27 +4,58 @@
 <head>
     <meta charset="utf-8">
     <title>はがき印刷データ</title>
-    <style>
-        body,
-        h1,
-        h2,
-        h3,
-        h4,
-        h5,
-        h6,
-        th,
-        td,
-        strong,
-        .amount,
-        .customer-info,
-        .payment-info,
-        .footer,
-        .logo {
-            font-family: "NotoSansJP";
-            font-weight: 400;
-            font-style: normal;
-            src: url("{{ storage_path('fonts/NotoSansJP.ttf') }}") format("truetype");
+    @php
+        use Carbon\Carbon;
+
+        if (!function_exists('wareki_parts')) {
+            function wareki_parts(Carbon $date): array {
+                $y = (int) $date->year; $m = (int) $date->month; $d = (int) $date->day;
+                // Era boundaries
+                $reiwaStart = Carbon::create(2019, 5, 1);
+                $heiseiStart = Carbon::create(1989, 1, 8);
+                if ($date->greaterThanOrEqualTo($reiwaStart)) {
+                    $ey = $y - 2018; // Reiwa 1 = 2019
+                    return ['令和', $ey, $m, $d];
+                } elseif ($date->greaterThanOrEqualTo($heiseiStart)) {
+                    $ey = $y - 1988; // Heisei 1 = 1989
+                    return ['平成', $ey, $m, $d];
+                }
+                // Fallback: Show Gregorian with no era
+                return ['', $y, $m, $d];
+            }
         }
+        if (!function_exists('wareki_ymd')) {
+            function wareki_ymd($date): string {
+                if (!$date) { return ''; }
+                $dt = $date instanceof Carbon ? $date : Carbon::parse($date);
+                [$era, $ey, $m, $d] = wareki_parts($dt);
+                // zero-pad era year to 2 digits to match example (e.g., 07)
+                $eyStr = sprintf('%02d', (int) $ey);
+                return trim(sprintf('%s%s年　%d月　%d日', $era, $eyStr, $m, $d));
+            }
+        }
+        if (!function_exists('wareki_ym')) {
+            function wareki_ym(int $year, int $month): string {
+                $dt = Carbon::create($year, $month, 1);
+                [$era, $ey, $m, $_] = wareki_parts($dt);
+                $eyStr = sprintf('%02d', (int) $ey);
+                return trim(sprintf('%s%s年　%d月分', $era, $eyStr, $m));
+            }
+        }
+    @endphp
+    <style>
+        /* Embed JP font explicitly for Dompdf */
+        @font-face {
+            font-family: 'NotoSansJP';
+            font-style: normal;
+            font-weight: 400;
+            src: url('{{ resource_path('fonts/NotoSansJP.ttf') }}') format('truetype');
+        }
+        html, body, h1, h2, h3, h4, h5, h6, th, td, strong,
+        .amount, .customer-info, .payment-info, .footer, .logo {
+            font-family: 'NotoSansJP', 'DejaVu Sans', sans-serif;
+        }
+        body { font-variant-numeric: tabular-nums; }
 
         .postcard {
             width: 148mm;
@@ -76,28 +107,22 @@
     @foreach ($data as $row)
         <div class="postcard">
             <div class="header">
-                <h3>
-                    @if (!empty($row['bill_title']))
-                        {{ $row['bill_title'] }} 請求書
-                    @else
-                        {{ $year }}年{{ $month }}月分 請求書
-                    @endif
-                </h3>
+                <h3>{{ wareki_ym((int)$year, (int)$month) }}　御請求書</h3>
             </div>
             <div class="customer-info">
                 <strong>{{ $row['recipient_name'] }}</strong>
                 @if (!empty($row['customer_number']))<span> / No. {{ $row['customer_number'] }}</span>@endif
             </div>
             <div>
-                <p>下記のとおりご請求申し上げます。</p>
+                <p>下記のとおり御請求いたします。</p>
                 <div>
-                    ご請求金額（税込）
+                    合計金額（税込）
                     <span class="amount">¥{{ number_format((float)($row['amount_total'] ?? 0)) }}</span>
                 </div>
             </div>
             <div style="border:1px solid #000; border-radius:3px; padding:6px; margin:10px 0; display:flex; justify-content:space-between; align-items:center;">
                 <div style="font-size:10px; color:#666;">※振替日</div>
-                <div style="font-weight:bold;">{{ $row['transfer_date'] }}</div>
+                <div style="font-weight:bold;">{{ wareki_ymd($row['transfer_date'] ?? '') }}</div>
             </div>
             <div class="payment-info">
                 <strong>明細</strong>

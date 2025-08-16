@@ -224,9 +224,15 @@ class CustomerController extends Controller
 
     public function getBankName(Request $request)
     {
+      
         $bankCode = $request->string('bank_code')->toString();
         if ($bankCode === '' || !ctype_digit($bankCode) || strlen($bankCode) !== 4) {
             return response()->json(['error' => 'bank_code must be 4 digits'], 422);
+        }
+
+        $apiKey = env('BANK_API_KEY');
+        if (empty($apiKey)) {
+            return response()->json(['bank_name' => null, 'cached' => false, 'disabled' => true], 200);
         }
 
         $cacheKey = "bank-name:{$bankCode}";
@@ -236,7 +242,7 @@ class CustomerController extends Controller
 
         try {
             $response = Http::acceptJson()
-                ->withHeaders(['Authorization' => 'Bearer ' . env('BANK_API_KEY')])
+                ->withHeaders(['Authorization' => 'Bearer ' . $apiKey])
                 ->connectTimeout(1)
                 ->timeout(3)
                 ->retry(0, 0)
@@ -262,13 +268,18 @@ class CustomerController extends Controller
         if ($branchCode === '' || !ctype_digit($branchCode) || strlen($branchCode) !== 3) {
             return response()->json(['error' => 'branch_code must be 3 digits'], 422);
         }
+        
+        $apiKey = env('BANK_API_KEY');
+        if (empty($apiKey)) {
+            return response()->json(['branch_name' => null, 'cached' => false, 'disabled' => true], 200);
+        }
         $cacheKey = "branch-name:{$branchCode}";
         if (Cache::has($cacheKey)) {
             return response()->json(['branch_name' => Cache::get($cacheKey), 'cached' => true]);
         }
         try {
             $response = Http::acceptJson()
-                ->withHeaders(['Authorization' => 'Bearer ' . env('BANK_API_KEY')])
+                ->withHeaders(['Authorization' => 'Bearer ' . $apiKey])
                 ->connectTimeout(1)
                 ->timeout(3)
                 ->retry(0, 0)

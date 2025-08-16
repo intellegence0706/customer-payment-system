@@ -1,7 +1,6 @@
 <?php
 
 namespace App\Http\Controllers;
-
 use App\Models\Payment;
 use App\Models\PaymentItem;
 use App\Models\Customer;
@@ -242,8 +241,7 @@ class PaymentController extends Controller
         ]);
 
         $payment = Payment::create($validated);
-
-        // Optional line items aggregation to totals
+    
         $subtotal = 0.0; $taxTotal = 0.0; $otherFees = 0.0;
         if ($request->filled('items')) {
             foreach ($request->input('items') as $index => $item) {
@@ -741,9 +739,9 @@ class PaymentController extends Controller
         \PDF::setOptions([
             'isHtml5ParserEnabled' => true,
             'isRemoteEnabled' => true,
-            'defaultFont' => 'NotoSansJP',
-            'dpi' => 96,
-            'fontDir' => base_path('resources/fonts'),
+            'defaultFont' => env('DOMPDF_DEFAULT_FONT', 'NotoSansJP'),
+            'dpi' => config('dompdf.dpi', 96),
+            'fontDir' => resource_path('fonts'),
             'fontCache' => storage_path('fonts'),
         ]);
 

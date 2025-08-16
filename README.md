@@ -96,7 +96,7 @@ php artisan key:generate
 
 ```bash
 # Create database
-mysql -u root -p -e "CREATE DATABASE customer_management;"
+cccccc
 
 # Run migrations
 php artisan migrate

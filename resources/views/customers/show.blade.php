@@ -45,7 +45,7 @@
                         <div class="col-md-6">
                             <div class="info-item">
                                 <label class="form-label fw-bold text-muted small text-uppercase">ガーナ</label>
-                                <p class="form-control-plaintext h6 mb-0">{{ $customer->ghana ?? 'Not specified' }}</p>
+                                <p class="form-control-plaintext h6 mb-0">{{ $customer->ghana ?? '指定されていない' }}</p>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -64,7 +64,7 @@
                         <div class="col-md-4">
                             <div class="info-item">
                                 <label class="form-label fw-bold text-muted small text-uppercase">郵便番号</label>
-                                <p class="form-control-plaintext h6 mb-0">{{ $customer->postal_code ?? 'Not specified' }}
+                                <p class="form-control-plaintext h6 mb-0">{{ $customer->postal_code ?? '指定されていない' }}
                                 </p>
                             </div>
                         </div>
@@ -77,7 +77,7 @@
                                             <i class="fas fa-phone me-1 text-primary"></i>{{ $customer->phone_number }}
                                         </a>
                                     @else
-                                        Not specified
+                                        指定されていない
                                     @endif
                                 </p>
                             </div>
@@ -89,7 +89,7 @@
                                     @if ($customer->address)
                                         <i class="fas fa-map-marker-alt me-1 text-muted"></i>{{ $customer->address }}
                                     @else
-                                        Not specified
+                                        指定されていない
                                     @endif
                                 </p>
                             </div>
@@ -128,13 +128,13 @@
                         <div class="col-md-3">
                             <div class="info-item">
                                 <label class="form-label fw-bold text-muted small text-uppercase">銀行コード</label>
-                                <p class="form-control-plaintext h6 mb-0">{{ $customer->bank_code ?? 'Not specified' }}</p>
+                                <p class="form-control-plaintext h6 mb-0">{{ $customer->bank_code ?? '指定されていない' }}</p>
                             </div>
                         </div>
                         <div class="col-md-3">
                             <div class="info-item">
                                 <label class="form-label fw-bold text-muted small text-uppercase">支店コード</label>
-                                <p class="form-control-plaintext h6 mb-0">{{ $customer->branch_code ?? 'Not specified' }}
+                                <p class="form-control-plaintext h6 mb-0">{{ $customer->branch_code ?? '指定されていない' }}
                                 </p>
                             </div>
                         </div>
@@ -145,7 +145,7 @@
                                     @if ($customer->bank_name)
                                         <i class="fas fa-building me-1 text-success"></i>{{ $customer->bank_name }}
                                     @else
-                                        Not specified
+                                        指定されていない
                                     @endif
                                 </p>
                             </div>
@@ -157,7 +157,7 @@
                                     @if ($customer->branch_name)
                                         <i class="fas fa-map-pin me-1 text-success"></i>{{ $customer->branch_name }}
                                     @else
-                                        Not specified
+                                        指定されていない
                                     @endif
                                 </p>
                             </div>
@@ -165,14 +165,14 @@
                         <div class="col-md-6">
                             <div class="info-item">
                                 <label class="form-label fw-bold text-muted small text-uppercase">口座名義</label>
-                                <p class="form-control-plaintext h6 mb-0">{{ $customer->account_name ?? 'Not specified' }}
+                                <p class="form-control-plaintext h6 mb-0">{{ $customer->account_name ?? '指定されていない' }}
                                 </p>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="info-item">
                                 <label class="form-label fw-bold text-muted small text-uppercase">口座ガーナ</label>
-                                <p class="form-control-plaintext h6 mb-0">{{ $customer->account_ghana ?? 'Not specified' }}
+                                <p class="form-control-plaintext h6 mb-0">{{ $customer->account_ghana ?? '指定されていない' }}
                                 </p>
                             </div>
                         </div>
@@ -183,7 +183,7 @@
                                     @if ($customer->account_number)
                                         <code class="bg-light px-2 py-1 rounded">{{ $customer->account_number }}</code>
                                     @else
-                                        Not specified
+                                        指定されていない
                                     @endif
                                 </p>
                             </div>
@@ -192,7 +192,7 @@
                             <div class="info-item">
                                 <label class="form-label fw-bold text-muted small text-uppercase">口座名義人</label>
                                 <p class="form-control-plaintext h6 mb-0">
-                                    {{ $customer->account_holder ?? 'Not specified' }}</p>
+                                    {{ $customer->account_holder ?? '指定されていない' }}</p>
                             </div>
                         </div>
                         @if ($customer->bank_note)

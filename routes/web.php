@@ -28,14 +28,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('payments/upload', [PaymentController::class, 'showUploadForm'])->name('payments.upload-form');
     Route::post('payments/upload', [PaymentController::class, 'uploadMonthEndData'])->name('payments.upload');
     Route::get('payments/postcard-form', [PaymentController::class, 'showPostcardForm'])->name('payments.postcard-form');
-    
     Route::get('payments/postcard-data', [PaymentController::class, 'generatePostcardData'])->name('payments.postcard-data');
     Route::get('payments/export-csv', [PaymentController::class, 'exportPostcardCsv'])->name('payments.export-csv');
     Route::get('payments/export-pdf', [PaymentController::class, 'exportPostcardPdf'])->name('payments.export-pdf');
     Route::get('/postcards/print/csv', [\App\Http\Controllers\PaymentController::class, 'exportPostcardPrintCsv'])->name('postcards.print.csv');
     Route::get('/postcards/print/pdf', [\App\Http\Controllers\PaymentController::class, 'exportPostcardPrintPdf'])->name('postcards.print.pdf');
-
-
     Route::resource('payments', PaymentController::class);
 
     Route::middleware(['role:admin,manager'])->group(function () {
