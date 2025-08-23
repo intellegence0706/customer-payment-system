@@ -69,9 +69,19 @@
       <h1 class="h3 mb-0">入金詳細</h1>
     </div>
     <div class="btn-toolbar mb-2 mb-md-0 gap-2">
-      <a href="{{ route('postcards.print.pdf',['payment_id'=>$payment->id]) }}" target="_blank" class="btn btn-outline-primary">
-        <i class="fas fa-file-pdf me-1"></i>PDF出力
-      </a>
+      <div class="btn-group" role="group">
+        <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="fas fa-file-export me-1"></i> エクスポート
+        </button>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" href="{{ route('postcards.print.pdf',['payment_id'=>$payment->id]) }}" target="_blank">
+            <i class="fas fa-file-pdf me-1"></i> PDF形式
+          </a></li>
+          <li><a class="dropdown-item" href="{{ route('postcards.print.xlsx') }}?payment_id={{ $payment->id }}">
+            <i class="fas fa-file-excel me-1"></i> Excel形式 (XLSX)
+          </a></li>
+        </ul>
+      </div>
       <a href="{{ route('payments.edit',$payment) }}" class="btn btn-outline-secondary">
         <i class="fas fa-edit me-1"></i>編集
       </a>

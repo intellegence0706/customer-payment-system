@@ -11,6 +11,8 @@ class PostcardController extends Controller
 {
     public function generatePostcardPDF(Request $request)
     {
+
+        Log::info("generatePostcardPDF");
         $request->validate([
             'month' => 'required|integer|between:1,12',
             'year' => 'required|integer|min:2020',
@@ -106,7 +108,6 @@ class PostcardController extends Controller
                 ->setPaper('A4', 'portrait');
         
         $filename = "はがき_{$currentYear}_{$currentMonth}_" . date('Y-m-d_H-i-s') . '.pdf';
-        // If there are more than 200 postcards, inform user in filename; we can extend to zip later
         if (count($chunks) > 1) {
             $filename = "はがき_{$currentYear}_{$currentMonth}_part1_" . date('Y-m-d_H-i-s') . '.pdf';
         }

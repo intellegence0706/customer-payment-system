@@ -41,19 +41,19 @@
                 <div class="card mb-4">
                     <div class="card-header">
                         <h5 class="mb-0">
-                            <i class="fas fa-upload me-2"></i>CSVファイルをアップロード
+                            <i class="fas fa-upload me-2"></i>ファイルをアップロード (CSV/XLSX)
                         </h5>
                     </div>
                     <div class="card-body">
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label for="payment_file" class="form-label">
-                                    CSV File
+                                    ファイル (CSV/XLSX)
                                     <span class="text-danger">*</span>
                                 </label>
                                 <input type="file" class="form-control @error('payment_file') is-invalid @enderror"
-                                    id="payment_file" name="payment_file" accept=".csv,.txt" required
-                                    onchange="previewFile(this)" />
+                                    id="payment_file" name="payment_file" accept=".csv,.txt,.xlsx" required
+                                    onchange="pr    eviewFile(this)" />
                                 <div class="form-text">
                                     <small>
                                         <i class="fas fa-info-circle me-1"></i>
@@ -71,11 +71,11 @@
                                 </label>
                                 <select class="form-select @error('payment_month') is-invalid @enderror" id="payment_month"
                                     name="payment_month" required>
-                                    <option value="">Select Month</option>
+                                    <option value="">月を選択</option>
                                     @for ($i = 1; $i <= 12; $i++)
                                         <option value="{{ $i }}"
                                             {{ old('payment_month', $currentMonth) == $i ? 'selected' : '' }}>
-                                            {{ date('F', mktime(0, 0, 0, $i, 1)) }}
+                                            {{ $i }}月
                                         </option>
                                     @endfor
                                 </select>
@@ -86,10 +86,11 @@
 
                             <div class="col-md-3">
                                 <label for="payment_year" class="form-label">
-                                    年</label>
+                                    年 
+                                </label>
                                 <select class="form-select @error('payment_year') is-invalid @enderror" id="payment_year"
                                     name="payment_year" required>
-                                    <option value="">Select Year</option>
+                                    <option value="">年を選択</option>
                                     @for ($year = date('Y') + 1; $year >= 2020; $year--)
                                         <option value="{{ $year }}"
                                             {{ old('payment_year', $currentYear) == $year ? 'selected' : '' }}>
@@ -113,7 +114,7 @@
                                 </div>
                                 <div class="card-body">
                                     <div id="previewContent" class="table-responsive">
-                                        <!-- Preview content will be loaded here -->
+                                        
                                     </div>
                                 </div>
                             </div>
@@ -125,24 +126,28 @@
                 <div class="card mb-4">
                     <div class="card-header">
                         <h6 class="mb-0">
-                            <i class="fas fa-question-circle me-2"></i>CSV 形式の説明
+                            <i class="fas fa-question-circle me-2"></i>ファイル形式の説明
                         </h6>
                     </div>
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-6">
-                                <h6>必須フォーマット:</h6>
+                                <h6>必須フォーマット (CSV/XLSX共通):</h6>
                                 <ul class="list-unstyled">
                                     <li><strong>1列目:</strong> 顧客番号</li>
                                     <li><strong>2列目:</strong> 金額（数値）</li>
                                     <li><strong>3列目:</strong> 入金日（YYYY-MM-DD）</li>
                                     <li><strong>4列目:</strong> 受付番号（任意）</li>
                                 </ul>
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    XLSXファイルでは日本語文字が正しく処理されます
+                                </small>
                             </div>
                             <div class="col-md-6">
                                 <h6>例:</h6>
                                 <pre class="bg-light p-2 rounded">
-                                     <code>Customer Number,Amount,Payment Date,Receipt Number
+                                     <code>顧客番号,金額,入金日,受付番号
                                         CUST001,1500.00,2024-01-15,RCPT001
                                         CUST002,2500.50,2024-01-16,RCPT002
                                     </code>
@@ -174,7 +179,7 @@
                     <ul class="list-unstyled mb-0">
                         <li class="mb-2">
                             <i class="fas fa-check text-success me-2"></i>
-                            ファイルはCSVまたはTXT形式
+                            ファイルはCSV、TXT、またはXLSX形式
                         </li>
                         <li class="mb-2">
                             <i class="fas fa-check text-success me-2"></i>
@@ -209,40 +214,57 @@
             const previewContent = document.getElementById('previewContent');
 
             if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const content = e.target.result;
-                    const lines = content.split('\n');
-                    const previewLines = lines.slice(0, 6); // Show first 5 data rows + header
-
-                    let html = '<table class="table table-sm table-bordered">';
-                    previewLines.forEach((line, index) => {
-                        if (line.trim()) {
-                            const cells = line.split(',');
-                            html += '<tr>';
-                            cells.forEach(cell => {
-                                const cellClass = index === 0 ? 'table-primary' : '';
-                                html += `<td class="${cellClass}">${cell.trim()}</td>`;
-                            });
-                            html += '</tr>';
-                        }
-                    });
-                    html += '</table>';
-
-                    if (lines.length > 6) {
-                        html += `<small class="text-muted">... and ${lines.length - 6} more rows</small>`;
-                    }
-
-                    previewContent.innerHTML = html;
+                const fileName = file.name.toLowerCase();
+                const fileExtension = fileName.split('.').pop();
+                
+                if (fileExtension === 'xlsx') {
+                    // Show file info for XLSX files
+                    previewContent.innerHTML = `
+                        <div class="alert alert-info">
+                            <i class="fas fa-file-excel me-2"></i>
+                            <strong>XLSXファイル:</strong> ${file.name}<br>
+                            <small>サイズ: ${(file.size / 1024).toFixed(1)} KB</small><br>
+                            <small>XLSXファイルはアップロード後に処理されます。プレビューは利用できません。</small>
+                        </div>
+                    `;
                     previewDiv.style.display = 'block';
-                };
-                reader.readAsText(file);
+                } else {
+                    // Handle CSV/TXT files
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const content = e.target.result;
+                        const lines = content.split('\n');
+                        const previewLines = lines.slice(0, 6); // Show first 5 data rows + header
+
+                        let html = '<table class="table table-sm table-bordered">';
+                        previewLines.forEach((line, index) => {
+                            if (line.trim()) {
+                                const cells = line.split(',');
+                                html += '<tr>';
+                                cells.forEach(cell => {
+                                    const cellClass = index === 0 ? 'table-primary' : '';
+                                    html += `<td class="${cellClass}">${cell.trim()}</td>`;
+                                });
+                                html += '</tr>';
+                            }
+                        });
+                        html += '</table>';
+
+                        if (lines.length > 6) {
+                            html += `<small class="text-muted">... and ${lines.length - 6} more rows</small>`;
+                        }
+
+                        previewContent.innerHTML = html;
+                        previewDiv.style.display = 'block';
+                    };
+                    reader.readAsText(file, 'UTF-8');
+                }
             } else {
                 previewDiv.style.display = 'none';
             }
+
         }
 
-        // Form validation
         document.getElementById('uploadForm').addEventListener('submit', function(e) {
             const fileInput = document.getElementById('payment_file');
             const monthSelect = document.getElementById('payment_month');
@@ -272,3 +294,4 @@
         });
     </script>
 @endsection
+

@@ -8,9 +8,19 @@
             <a href="{{ route('payments.create') }}" class="btn btn-primary">
                 <i class="fas fa-plus me-1"></i> 入金を追加
             </a>
-            <a href="{{ route('payments.upload-form') }}" class="btn btn-outline-secondary">
-                <i class="fas fa-upload me-1"></i> データ取込
-            </a>
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-upload me-1"></i> データ取込
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="{{ route('payments.upload-form') }}">
+                        <i class="fas fa-file-csv me-1"></i> 一括取込 (CSV/XLSX)
+                    </a></li>
+                    <li><a class="dropdown-item" href="{{ route('payments.xlsx-viewer') }}">
+                        <i class="fas fa-file-excel me-1"></i> XLSXビューア
+                    </a></li>
+                </ul>
+            </div>
         </div>
     </div>
 </div>
@@ -85,3 +95,4 @@
     </div>
 </div>
 @endsection
+    

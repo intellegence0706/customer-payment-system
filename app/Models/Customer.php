@@ -10,20 +10,34 @@ class Customer extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name',
-        'name_kana',
+        'customer_code',           // 顧客コード
+        'name',                    // 利用者氏名
+        'name_kana',               // 利用者カナ氏名
+        'account_kana_name',       // 口座カナ氏名
+        'account_holder_name',     // 口座人氏名
+        'customer_number_new',     // 顧客番号 (new format)
         'ghana',
         'gender',
         'date_of_birth',
         'postal_code',
+        'billing_postal_code',     // 請求先郵便番号
         'prefecture',
+        'billing_prefecture',      // 請求先県名
         'city',
+        'billing_city',            // 請求先市区町村
         'address_line',
+        'billing_street_address',  // 請求先番地
+        'billing_building',        // 請求先建物
         'address',
         'phone_number',
         'telephone_number',
         'mobile_number',
         'note',
+        'payment_classification',  // 支払区分
+        'payment_method',          // 支払方法
+        'billing_amount',          // 請求金額
+        'adjusted_billing_amount', // 調整請求額
+        'consumption_tax',         // 消費税
         'bank_name',
         'branch_name',
         'account_name',
@@ -32,6 +46,7 @@ class Customer extends Model
         'account_number',
         'account_holder',
         'customer_number',
+        'deposit_type',            // 預金種目
         'bank_note',
         'bank_code',
         'branch_code',
@@ -40,13 +55,11 @@ class Customer extends Model
         'reception_date',
         'residence',
         'care_manager',
-        'payment_method',
         'rental_fee',
         'assembly_delivery_costs',
         'district_court',
         'billable',
         'subject',
-        'deposit_type',
         'salesperson',
         'address_operator'
     ];

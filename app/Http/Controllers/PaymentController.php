@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\PostcardExport;
+use App\Exports\PostcardPrintExport;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class PaymentController extends Controller
 {
@@ -395,14 +399,14 @@ class PaymentController extends Controller
         ]);
 
         return redirect()->route('payments.index')
-            ->with('success', 'Payment updated successfully.');
+            ->with('success', '支払いが正常に更新されました。');
     }
 
     public function destroy(Payment $payment)
     {
         $payment->delete();
         return redirect()->route('payments.index')
-            ->with('success', 'Payment deleted successfully.');
+            ->with('success', '支払いが正常に削除されました。');
     }
 
     public function showUploadForm()
@@ -424,75 +428,115 @@ class PaymentController extends Controller
     {
         
         $request->validate([
-            'payment_file' => 'required|file|mimes:csv,txt|max:2048', // 2MB max
+            'payment_file' => 'required|file|mimes:csv,txt,xlsx|max:2048', // 2MB max
             'payment_month' => 'required|integer|between:1,12',
             'payment_year' => 'required|integer|min:2020|max:' . (date('Y') + 1),
         ], [
-            'payment_file.required' => 'Please select a CSV file to upload.',
-            'payment_file.mimes' => 'The file must be a CSV or TXT file.',
-            'payment_file.max' => 'The file size must not exceed 2MB.',
-            'payment_month.between' => 'Month must be between 1 and 12.',
-            'payment_year.min' => 'Year must be 2020 or later.',
-            'payment_year.max' => 'Year cannot be more than ' . (date('Y') + 1) . '.',
+            'payment_file.required' => 'アップロードするCSVファイルを選択してください。',
+            'payment_file.mimes' => 'ファイルはCSV、TXT、またはXLSX形式である必要があります。',
+            'payment_file.max' => 'ファイルサイズは2MB以下である必要があります。',
+            'payment_month.between' => '月は1から12の間で選択してください。',
+            'payment_year.min' => '年は2020年以降を選択してください。',
+            'payment_year.max' => '年は' . (date('Y') + 1) . '年以前を選択してください。',
         ]);
 
         try {
             $file = $request->file('payment_file');
             $path = $file->store('uploads');
+            $extension = strtolower($file->getClientOriginalExtension());
             
-            $handle = fopen(storage_path('app/' . $path), 'r');
+            $data = [];
             
-            if (!$handle) {
-                throw new \Exception('Unable to read the uploaded file.');
+            if ($extension === 'xlsx') {
+              
+                $spreadsheet = IOFactory::load(storage_path('app/' . $path));
+                $worksheet = $spreadsheet->getActiveSheet();
+                $rows = $worksheet->toArray();
+                if (empty($rows) || count($rows) < 2) {
+                    throw new \Exception('XLSXファイルが空であるか、データが不足しています。');
+                }
+                
+                $header = array_shift($rows); 
+                if (!$header || count($header) < 3) {
+                    throw new \Exception('XLSXフォーマットが無効です。最低3列必要です：顧客番号、金額、入金日。');
+                }
+                
+                $data = $rows;
+            } else {
+                // Handle CSV/TXT files
+                $fileContent = file_get_contents(storage_path('app/' . $path));
+                $encoding = mb_detect_encoding($fileContent, ['UTF-8', 'SJIS', 'EUC-JP'], true);
+                if ($encoding && $encoding !== 'UTF-8') {
+                    $fileContent = mb_convert_encoding($fileContent, 'UTF-8', $encoding);
+                    file_put_contents(storage_path('app/' . $path), $fileContent);
+                }
+                
+                $handle = fopen(storage_path('app/' . $path), 'r');
+                
+                if (!$handle) {
+                    throw new \Exception('アップロードされたファイルを読み込めません。');
+                }
+                $header = fgetcsv($handle);
+                if (!$header || count($header) < 3) {
+                    throw new \Exception('CSVフォーマットが無効です。最低3列必要です：顧客番号、金額、入金日。');
+                }
+                while (($row = fgetcsv($handle)) !== false) {
+                    if (!empty(array_filter($row))) {
+                        $data[] = $row;
+                    }
+                }
+                fclose($handle);
             }
-            $header = fgetcsv($handle);
-            if (!$header || count($header) < 3) {
-                throw new \Exception('Invalid CSV format. Expected at least 3 columns: Customer Number, Amount, Payment Date.');
-          }
             
             $imported = 0;
             $errors = [];
-            $rowNumber = 1; // Start from 1 since we already read the header
-            
+            $rowNumber = 1;
+
+            $customerCount = Customer::count();
+            \Log::info('XLSX Import Debug', [
+                'extension' => $extension,
+                'data_count' => count($data),
+                'customer_count_in_db' => $customerCount,
+                'first_few_rows' => array_slice($data, 0, 3)
+            ]);
 
             \DB::beginTransaction();
             
             try {
-                while (($data = fgetcsv($handle)) !== false) {
+                foreach ($data as $rowData) {
                     $rowNumber++;
                     
-                    if (empty(array_filter($data))) {
+                    if (empty(array_filter($rowData))) {
                         continue;
                     }
                                  
-                    if (empty($data[0])) {
-                        $errors[] = "Row {$rowNumber}: Customer number is required.";
+                    if (empty($rowData[0])) {
+                        $errors[] = "{$rowNumber}行目: 顧客番号が必要です。";
                         continue;
                     }
                     
-                    // Normalize amount: remove currency symbols and commas
-                    $rawAmount = isset($data[1]) ? preg_replace('/[^0-9.\-]/', '', (string) $data[1]) : '';
+                    $rawAmount = isset($rowData[1]) ? preg_replace('/[^0-9.\-]/', '', (string) $rowData[1]) : '';
                     if ($rawAmount === '' || !is_numeric($rawAmount)) {
-                        $errors[] = "Row {$rowNumber}: Valid amount is required.";
+                        $errors[] = "{$rowNumber}行目: 有効な金額が必要です。";
                         continue;
                     }
                     $amount = (float) $rawAmount;
 	                    if ($amount < 0 || $amount > 99999999.99) {
-                        $errors[] = "Row {$rowNumber}: Amount out of allowed range.";
+                        $errors[] = "{$rowNumber}行目: 金額が許可範囲外です。";
                         continue;
                     }
                     
-                    $customer = Customer::where('customer_number', trim($data[0]))->first();
+                    $customer = Customer::where('customer_number', trim($rowData[0]))->first();
                     
                     if (!$customer) {
-                        $errors[] = "Row {$rowNumber}: Customer not found with number '{$data[0]}'.";
+                        $errors[] = "{$rowNumber}行目: 顧客番号'{$rowData[0]}'が見つかりません。";
                         continue;
                     }
                     
                     $paymentDate = null;
-                    if (!empty($data[2])) {
+                    if (!empty($rowData[2])) {
                         try {
-                            $paymentDate = Carbon::parse($data[2]);
+                            $paymentDate = Carbon::parse($rowData[2]);
                         } catch (\Exception $e) {
                             $paymentDate = now();
                         }
@@ -507,7 +551,7 @@ class PaymentController extends Controller
                         ->first();
                     
                     if ($existingPayment) {
-                        $errors[] = "Row {$rowNumber}: Payment already exists for customer '{$customer->name}' for {$request->payment_month}/{$request->payment_year}.";
+                        $errors[] = "{$rowNumber}行目: 顧客'{$customer->name}'の{$request->payment_year}年{$request->payment_month}月の入金が既に存在します。";
                         continue;
                     }
 
@@ -517,9 +561,9 @@ class PaymentController extends Controller
                         'payment_year' => $request->payment_year,
                         'amount' => $amount,
                         'payment_date' => $paymentDate,
-                        'receipt_number' => $data[3] ?? null,
+                        'receipt_number' => $rowData[3] ?? null,
                         'status' => 'completed',
-                        'notes' => 'Imported from month-end data',
+                        'notes' => '月末データから取込',
                     ]);
                     
                     $imported++;
@@ -532,14 +576,19 @@ class PaymentController extends Controller
                 throw $e;
             }
             
-            fclose($handle);
             Storage::delete($path);
             
-            $message = "Successfully imported {$imported} payments.";
+            \Log::info('XLSX Import Results', [
+                'imported' => $imported,
+                'error_count' => count($errors),
+                'errors' => array_slice($errors, 0, 5)
+            ]);
+
+            $message = "{$imported}件の入金データを正常に取り込みました。";
             if (!empty($errors)) {
-                $message .= " Errors: " . implode('; ', array_slice($errors, 0, 10));
+                $message .= " エラー: " . implode('; ', array_slice($errors, 0, 10));
                 if (count($errors) > 10) {
-                    $message .= " (and " . (count($errors) - 10) . " more errors)";
+                    $message .= " (他" . (count($errors) - 10) . "件のエラー)";
                 }
             }
             
@@ -556,7 +605,7 @@ class PaymentController extends Controller
             
             return redirect()->back()
                 ->withInput()
-                ->withErrors(['payment_file' => 'Upload failed: ' . $e->getMessage()]);
+                ->withErrors(['payment_file' => 'アップロードに失敗しました: ' . $e->getMessage()]);
         }
     }
 
@@ -695,7 +744,7 @@ class PaymentController extends Controller
 
     public function exportPostcardPrintPdf(Request $request)
     {
-        // Optional: generate for a specific payment when payment_id is provided
+       
         $paymentId = $request->get('payment_id');
         if ($paymentId) {
             $payment = Payment::with(['customer', 'items' => function($q){ $q->orderBy('item_date'); }])->find($paymentId);
@@ -749,6 +798,209 @@ class PaymentController extends Controller
             ->setPaper('a4');
         $filename = sprintf('はがき印刷_%04d_%02d_%s.pdf', (int)$year, (int)$month, date('Y-m-d_H-i-s'));
         return $pdf->download($filename);
+    }
+
+    public function exportPostcardXlsx(Request $request)
+    {
+        $month = $request->get('month');
+        $year = $request->get('year');
+        $currentMonth = (int) $month;
+        $currentYear = (int) $year;
+        $postcardData = $this->buildPostcardData($currentMonth, $currentYear);
+        
+        $filename = "はがき_{$year}_{$month}_" . date('Y-m-d_H-i-s') . '.xlsx';
+        
+        return Excel::download(new PostcardExport($postcardData, $currentMonth, $currentYear), $filename);
+    }
+
+    public function exportPostcardPrintXlsx(Request $request)
+    {
+        $month = (int) $request->get('month');
+        $year = (int) $request->get('year');
+        if (!$month || $month < 1 || $month > 12 || !$year || $year < 2020) {
+            return redirect()->back()->with('error', '有効な月と年を選択してください。');
+        }
+        $data = $this->generatePostcardPrintData($month, $year);
+        $filename = "postcard_print_{$year}_{$month}_" . date('Y-m-d_H-i-s') . ".xlsx";
+        
+        return Excel::download(new PostcardPrintExport($data), $filename);
+    }
+
+    public function showXlsxViewer()
+    {
+        return view('payments.xlsx-viewer');
+    }
+
+    public function previewXlsxData(Request $request)
+    {
+        $request->validate([
+            'xlsx_file' => 'required|file|mimes:xlsx|max:5120', // 5MB max for viewer
+        ], [
+            'xlsx_file.required' => 'XLSXファイルを選択してください。',
+            'xlsx_file.mimes' => 'ファイルはXLSX形式である必要があります。',
+            'xlsx_file.max' => 'ファイルサイズは5MB以下である必要があります。',
+        ]);
+
+        try {
+            $file = $request->file('xlsx_file');
+            $path = $file->store('temp');
+            
+            // Load XLSX file
+            $spreadsheet = IOFactory::load(storage_path('app/' . $path));
+            $worksheet = $spreadsheet->getActiveSheet();
+            $rows = $worksheet->toArray();
+            
+            if (empty($rows)) {
+                throw new \Exception('XLSXファイルが空です。');
+            }
+            
+            $header = array_shift($rows); // Remove header row
+            $data = [];
+            
+            foreach ($rows as $index => $row) {
+                if (!empty(array_filter($row))) {
+                    $data[] = [
+                        'index' => $index + 2, // +2 because we removed header and arrays are 0-indexed
+                        'customer_number' => $row[0] ?? '',
+                        'amount' => $row[1] ?? '',
+                        'payment_date' => $row[2] ?? '',
+                        'receipt_number' => $row[3] ?? '',
+                        'raw_data' => $row
+                    ];
+                }
+            }
+            
+            // Clean up temp file
+            Storage::delete($path);
+            
+            return response()->json([
+                'success' => true,
+                'header' => $header,
+                'data' => $data,
+                'total_rows' => count($data),
+                'filename' => $file->getClientOriginalName()
+            ]);
+            
+        } catch (\Exception $e) {
+            if (isset($path) && Storage::exists($path)) {
+                Storage::delete($path);
+            }
+            return response()->json([
+                'success' => false,
+                'error' => 'ファイル処理エラー: ' . $e->getMessage()
+            ], 400);
+        }
+    }
+
+    public function importSelectedXlsxData(Request $request)
+    {
+        $request->validate([
+            'payment_month' => 'required|integer|between:1,12',
+            'payment_year' => 'required|integer|min:2020|max:' . (date('Y') + 1),
+            'selected_rows' => 'required|array|min:1',
+            'selected_rows.*' => 'required|array',
+        ], [
+            'payment_month.between' => '月は1から12の間で選択してください。',
+            'payment_year.min' => '年は2020年以降を選択してください。',
+            'payment_year.max' => '年は' . (date('Y') + 1) . '年以前を選択してください。',
+            'selected_rows.required' => '取り込むデータを選択してください。',
+            'selected_rows.min' => '少なくとも1行のデータを選択してください。',
+        ]);
+
+        try {
+            $imported = 0;
+            $errors = [];
+            
+            \DB::beginTransaction();
+            
+            foreach ($request->selected_rows as $rowIndex => $rowData) {
+                $displayRow = $rowIndex + 1;
+                
+                // Validate required fields
+                if (empty($rowData[0])) {
+                    $errors[] = "{$displayRow}行目: 顧客番号が必要です。";
+                    continue;
+                }
+                
+                // Validate amount
+                $rawAmount = isset($rowData[1]) ? preg_replace('/[^0-9.\-]/', '', (string) $rowData[1]) : '';
+                if ($rawAmount === '' || !is_numeric($rawAmount)) {
+                    $errors[] = "{$displayRow}行目: 有効な金額が必要です。";
+                    continue;
+                }
+                $amount = (float) $rawAmount;
+                
+                if ($amount < 0 || $amount > 99999999.99) {
+                    $errors[] = "{$displayRow}行目: 金額が許可範囲外です。";
+                    continue;
+                }
+                
+                // Find customer
+                $customer = Customer::where('customer_number', trim($rowData[0]))->first();
+                if (!$customer) {
+                    $errors[] = "{$displayRow}行目: 顧客番号'{$rowData[0]}'が見つかりません。";
+                    continue;
+                }
+                
+                // Parse payment date
+                $paymentDate = null;
+                if (!empty($rowData[2])) {
+                    try {
+                        $paymentDate = Carbon::parse($rowData[2]);
+                    } catch (\Exception $e) {
+                        $paymentDate = now();
+                    }
+                } else {
+                    $paymentDate = now();
+                }
+                
+                // Check for existing payment
+                $existingPayment = Payment::where('customer_id', $customer->id)
+                    ->where('payment_month', $request->payment_month)
+                    ->where('payment_year', $request->payment_year)
+                    ->first();
+                
+                if ($existingPayment) {
+                    $errors[] = "{$displayRow}行目: 顧客'{$customer->name}'の{$request->payment_year}年{$request->payment_month}月の入金が既に存在します。";
+                    continue;
+                }
+                
+                // Create payment record
+                Payment::create([
+                    'customer_id' => $customer->id,
+                    'payment_month' => $request->payment_month,
+                    'payment_year' => $request->payment_year,
+                    'amount' => $amount,
+                    'payment_date' => $paymentDate,
+                    'receipt_number' => $rowData[3] ?? null,
+                    'status' => 'completed',
+                    'notes' => 'XLSXビューアーから取込',
+                ]);
+                
+                $imported++;
+            }
+            
+            \DB::commit();
+            
+            $message = "{$imported}件の入金データを正常に取り込みました。";
+            if (!empty($errors)) {
+                $message .= " エラー: " . implode('; ', array_slice($errors, 0, 5));
+                if (count($errors) > 5) {
+                    $message .= " (他" . (count($errors) - 5) . "件のエラー)";
+                }
+            }
+            
+            $alertType = !empty($errors) ? 'warning' : 'success';
+            
+            return redirect()->route('payments.index')
+                ->with($alertType, $message);
+                
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['import' => 'インポートに失敗しました: ' . $e->getMessage()]);
+        }
     }
 
    

@@ -8,9 +8,19 @@
                 <a href="{{ route('payments.postcard-form') }}" class="btn btn-outline-secondary">
                     <i class="fas fa-arrow-left me-1"></i> フォームに戻る
                 </a>
-                <a href="{{ route('payments.export-csv') }}?month={{ $currentMonth }}&year={{ $currentYear }}" class="btn btn-outline-success">
-                    <i class="fas fa-download me-1"></i> CSVエクスポート
-                </a>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-success dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-download me-1"></i> エクスポート
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ route('payments.export-csv') }}?month={{ $currentMonth }}&year={{ $currentYear }}">
+                            <i class="fas fa-file-csv me-1"></i> CSV形式
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ route('payments.export-xlsx') }}?month={{ $currentMonth }}&year={{ $currentYear }}">
+                            <i class="fas fa-file-excel me-1"></i> Excel形式 (XLSX)
+                        </a></li>
+                    </ul>
+                </div>
                 <a href="{{ route('postcards.print.pdf') }}?month={{ $currentMonth }}&year={{ $currentYear }}" class="btn btn-danger">
                     <i class="fas fa-print me-1"></i> 印刷用PDF
                 </a>

@@ -26,7 +26,7 @@
                     <div class="card-body">
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label for="month" class="form-label">月 <span class="text-danger">*</span></label>
+                                <label for="month" class="form-label">月</label>
                                 <select class="form-select @error('month') is-invalid @enderror" id="month"
                                     name="month" required>
                                     <option value="">月を選択</option>
@@ -48,7 +48,7 @@
                                 @enderror
                             </div>
                             <div class="col-md-6">
-                                <label for="year" class="form-label">年 <span class="text-danger">*</span></label>
+                                <label for="year" class="form-label">年</label>
                                 <input type="number" class="form-control @error('year') is-invalid @enderror"
                                     id="year" name="year" min="2020" value="{{ request('year') }}" required>
                                 @error('year')

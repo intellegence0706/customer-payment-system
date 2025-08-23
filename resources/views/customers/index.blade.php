@@ -8,9 +8,22 @@
             <a href="{{ route('customers.create') }}" class="btn btn-primary">
                 <i class="fas fa-plus me-1"></i> 顧客を追加
             </a>
-            <button type="button" class="btn btn-outline-secondary" onclick="exportCustomers()">
-                <i class="fas fa-download me-1"></i> CSVエクスポート
-            </button>
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-download me-1"></i> エクスポート
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#" onclick="exportCustomers('csv')">
+                        <i class="fas fa-file-csv me-1"></i> CSV形式
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" onclick="exportCustomers('xlsx')">
+                        <i class="fas fa-file-excel me-1"></i> Excel形式 (XLSX)
+                    </a></li>
+                </ul>
+            </div>
+            <a href="{{ route('customers.import') }}" class="btn btn-outline-success">
+                <i class="fas fa-upload me-1"></i> 一括取込
+            </a>
         </div>
     </div>
 </div>
@@ -123,10 +136,14 @@
 
 @section('scripts')
 <script>
-function exportCustomers() {
+function exportCustomers(format) {
     const params = new URLSearchParams(window.location.search);
-    params.set('export', 'csv');
-    window.location.href = '{{ route("customers.export-csv") }}?' + params.toString();
+    if (format === 'xlsx') {
+        window.location.href = '{{ route("customers.export-xlsx") }}?' + params.toString();
+    } else {
+        params.set('export', 'csv');
+        window.location.href = '{{ route("customers.export-csv") }}?' + params.toString();
+    }
 }
 </script>
 @endsection

@@ -15,10 +15,10 @@
                 $heiseiStart = Carbon::create(1989, 1, 8);
                 if ($date->greaterThanOrEqualTo($reiwaStart)) {
                     $ey = $y - 2018; // Reiwa 1 = 2019
-                    return ['令和', $ey, $m, $d];
+                    return ['令和',$ey,$m,$d];
                 } elseif ($date->greaterThanOrEqualTo($heiseiStart)) {
-                    $ey = $y - 1988; // Heisei 1 = 1989
-                    return ['平成', $ey, $m, $d];
+                    $ey = $y - 1988; 
+                    return ['平成',$ey,$m,$d];
                 }
                 // Fallback: Show Gregorian with no era
                 return ['', $y, $m, $d];
@@ -31,7 +31,7 @@
                 [$era, $ey, $m, $d] = wareki_parts($dt);
                 // zero-pad era year to 2 digits to match example (e.g., 07)
                 $eyStr = sprintf('%02d', (int) $ey);
-                return trim(sprintf('%s%s年　%d月　%d日', $era, $eyStr, $m, $d));
+                return trim(sprintf('%s%s年%d月%d日', $era, $eyStr, $m, $d));
             }
         }
         if (!function_exists('wareki_ym')) {
@@ -39,7 +39,7 @@
                 $dt = Carbon::create($year, $month, 1);
                 [$era, $ey, $m, $_] = wareki_parts($dt);
                 $eyStr = sprintf('%02d', (int) $ey);
-                return trim(sprintf('%s%s年　%d月分', $era, $eyStr, $m));
+                return trim(sprintf('%s%s年%d月分', $era, $eyStr, $m));
             }
         }
     @endphp
@@ -56,7 +56,6 @@
             font-family: 'NotoSansJP', 'DejaVu Sans', sans-serif;
         }
         body { font-variant-numeric: tabular-nums; }
-
         .postcard {
             width: 148mm;
             height: 105mm;
@@ -107,7 +106,7 @@
     @foreach ($data as $row)
         <div class="postcard">
             <div class="header">
-                <h3>{{ wareki_ym((int)$year, (int)$month) }}　御請求書</h3>
+                <h3>{{wareki_ym((int)$year,(int)$month) }}御請求書</h3>
             </div>
             <div class="customer-info">
                 <strong>{{ $row['recipient_name'] }}</strong>

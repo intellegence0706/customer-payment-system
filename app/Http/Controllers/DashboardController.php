@@ -40,7 +40,7 @@ class DashboardController extends Controller
         })->count();
 
         $rangeTotalAmount = Payment::whereBetween('payment_date', [$dateFrom, $dateTo])
-            ->where('status', 'completed')
+            ->where('status', 'completed')  
             ->sum('amount');
         $rangePaymentCount = Payment::whereBetween('payment_date', [$dateFrom, $dateTo])
             ->where('status', 'completed')
