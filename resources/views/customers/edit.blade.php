@@ -10,115 +10,98 @@
     </div>
 </div>
 
+@if(session('success'))
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
+@if(session('error'))
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-circle me-2"></i>{{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
 <div class="row">
-    <div class="col-lg-8">
-        <form method="POST" action="{{ route('customers.update', $customer) }}">
+    <div class="col-lg-12">
+        <form method="POST" action="{{ route('customers.update', $customer) }}" id="customerForm">
             @csrf
             @method('PUT')
             
-            <!-- Personal Information -->
+            <!-- 基本情報 -->
             <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">個人情報</h5>
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-user me-2"></i>基本情報</h5>
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="name" class="form-label">氏名 <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control @error('name') is-invalid @enderror" 
-                                   id="name" name="name" value="{{ old('name', $customer->name) }}" required>
-                            @error('name')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        <div class="col-md-6">
-                            <label for="name_kana" class="form-label">氏名（カナ）</label>
-                            <input type="text" class="form-control @error('name_kana') is-invalid @enderror" 
-                                   id="name_kana" name="name_kana" value="{{ old('name_kana', $customer->name_kana) }}">
-                            @error('name_kana')
+                        <div class="col-md-4">
+                            <label for="user_name" class="form-label">利用者氏名</label>
+                            <input type="text" class="form-control @error('user_name') is-invalid @enderror" 
+                                   id="user_name" name="user_name" 
+                                   value="{{ old('user_name', $customer->user_name) }}" 
+                                   placeholder="例: 田中太郎">
+                            @error('user_name')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-4">
-                            <label for="date_of_birth" class="form-label">生年月日</label>
-                            <input type="date" class="form-control @error('date_of_birth') is-invalid @enderror" 
-                                   id="date_of_birth" name="date_of_birth" value="{{ old('date_of_birth', optional($customer->date_of_birth)->format('Y-m-d')) }}">
-                            @error('date_of_birth')
+                            <label for="user_kana_name" class="form-label">利用者カナ氏名</label>
+                            <input type="text" class="form-control @error('user_kana_name') is-invalid @enderror" 
+                                   id="user_kana_name" name="user_kana_name" 
+                                   value="{{ old('user_kana_name', $customer->user_kana_name) }}" 
+                                   placeholder="例: タナカタロウ">
+                            @error('user_kana_name')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-4">
-                            <label for="gender" class="form-label">性別 <span class="text-danger">*</span></label>
-                            <select class="form-select @error('gender') is-invalid @enderror" id="gender" name="gender" required>
-                                <option value="">選択してください</option>
-                                <option value="male" {{ old('gender', $customer->gender) == 'male' ? 'selected' : '' }}>男性</option>
-                                <option value="female" {{ old('gender', $customer->gender) == 'female' ? 'selected' : '' }}>女性</option>
-                                <option value="other" {{ old('gender', $customer->gender) == 'other' ? 'selected' : '' }}>その他</option>
-                            </select>
-                            @error('gender')
+                            <label for="customer_code" class="form-label">顧客コード</label>
+                            <input type="text" class="form-control @error('customer_code') is-invalid @enderror" 
+                                   id="customer_code" name="customer_code" 
+                                   value="{{ old('customer_code', $customer->customer_code) }}" 
+                                   placeholder="例: CUST001">
+                            @error('customer_code')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-4">
-                            <label for="postal_code" class="form-label">郵便番号</label>
-                            <input type="text" class="form-control @error('postal_code') is-invalid @enderror" 
-                                   id="postal_code" name="postal_code" value="{{ old('postal_code', $customer->postal_code) }}">
-                            @error('postal_code')
+                            <label for="account_holder_name" class="form-label">口座人氏名</label>
+                            <input type="text" class="form-control @error('account_holder_name') is-invalid @enderror" 
+                                   id="account_holder_name" name="account_holder_name" 
+                                   value="{{ old('account_holder_name', $customer->account_holder_name) }}" 
+                                   placeholder="例: 田中太郎">
+                            @error('account_holder_name')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-4">
-                            <label for="telephone_number" class="form-label">固定電話</label>
-                            <input type="text" class="form-control @error('telephone_number') is-invalid @enderror" 
-                                   id="telephone_number" name="telephone_number" value="{{ old('telephone_number', $customer->telephone_number) }}">
-                            @error('telephone_number')
+                            <label for="account_kana_name" class="form-label">口座カナ氏名</label>
+                            <input type="text" class="form-control @error('account_kana_name') is-invalid @enderror" 
+                                   id="account_kana_name" name="account_kana_name" 
+                                   value="{{ old('account_kana_name', $customer->account_kana_name) }}" 
+                                   placeholder="例: タナカタロウ">
+                            @error('account_kana_name')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-4">
-                            <label for="mobile_number" class="form-label">携帯電話</label>
-                            <input type="text" class="form-control @error('mobile_number') is-invalid @enderror" 
-                                   id="mobile_number" name="mobile_number" value="{{ old('mobile_number', $customer->mobile_number) }}">
-                            @error('mobile_number')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        <div class="col-md-4">
-                            <label for="prefecture" class="form-label">都道府県</label>
-                            <input type="text" class="form-control @error('prefecture') is-invalid @enderror" 
-                                   id="prefecture" name="prefecture" value="{{ old('prefecture', $customer->prefecture) }}">
-                            @error('prefecture')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        <div class="col-md-4">
-                            <label for="city" class="form-label">市区町村</label>
-                            <input type="text" class="form-control @error('city') is-invalid @enderror" 
-                                   id="city" name="city" value="{{ old('city', $customer->city) }}">
-                            @error('city')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        <div class="col-md-6">
-                            <label for="address_line" class="form-label">番地</label>
-                            <input type="text" class="form-control @error('address_line') is-invalid @enderror" 
-                                   id="address_line" name="address_line" value="{{ old('address_line', $customer->address_line) }}">
-                            @error('address_line')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        <div class="col-md-6">
-                            <label for="building" class="form-label">建物名</label>
-                            <input type="text" class="form-control @error('building') is-invalid @enderror" 
-                                   id="building" name="building" value="{{ old('building', $customer->building) }}">
-                            @error('building')
+                            <label for="customer_number" class="form-label">顧客番号 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('customer_number') is-invalid @enderror" 
+                                   id="customer_number" name="customer_number" 
+                                   value="{{ old('customer_number', $customer->customer_number) }}" 
+                                   placeholder="例: 12345678901234567890" required>
+                            @error('customer_number')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-12">
                             <label for="address" class="form-label">住所</label>
                             <textarea class="form-control @error('address') is-invalid @enderror" 
-                                      id="address" name="address" rows="3">{{ old('address', $customer->address) }}</textarea>
+                                      id="address" name="address" rows="3" 
+                                      placeholder="例: 東京都新宿区西新宿1-2-3">{{ old('address', $customer->address) }}</textarea>
                             @error('address')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -126,7 +109,8 @@
                         <div class="col-12">
                             <label for="note" class="form-label">備考</label>
                             <textarea class="form-control @error('note') is-invalid @enderror" 
-                                      id="note" name="note" rows="2">{{ old('note', $customer->note) }}</textarea>
+                                      id="note" name="note" rows="2" 
+                                      placeholder="備考があれば記入してください">{{ old('note', $customer->note) }}</textarea>
                             @error('note')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -135,236 +119,228 @@
                 </div>
             </div>
 
-            <!-- Bank Information -->
+            <!-- 支払情報 -->
             <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">銀行情報</h5>
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-credit-card me-2"></i>支払情報</h5>
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="customer_number" class="form-label">顧客番号 <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control @error('customer_number') is-invalid @enderror" 
-                                   id="customer_number" name="customer_number" value="{{ old('customer_number', $customer->customer_number) }}" required>
-                            @error('customer_number')
+                        <div class="col-md-4">
+                            <label for="payment_classification" class="form-label">支払区分</label>
+                            <select class="form-select @error('payment_classification') is-invalid @enderror" 
+                                    id="payment_classification" name="payment_classification">
+                                <option value="">選択してください</option>
+                                <option value="21" {{ old('payment_classification', $customer->payment_classification) == '21' ? 'selected' : '' }}>21</option>
+                                <option value="22" {{ old('payment_classification', $customer->payment_classification) == '22' ? 'selected' : '' }}>22</option>
+                                <option value="23" {{ old('payment_classification', $customer->payment_classification) == '23' ? 'selected' : '' }}>23</option>
+                            </select>
+                            @error('payment_classification')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
-                        <div class="col-md-3">
-                            <label for="bank_code" class="form-label">銀行コード（4桁）</label>
-                            <input type="text" class="form-control @error('bank_code') is-invalid @enderror" 
-                                   id="bank_code" name="bank_code" value="{{ old('bank_code', $customer->bank_code) }}" maxlength="4">
-                            @error('bank_code')
+                        <div class="col-md-4">
+                            <label for="payment_method" class="form-label">支払方法</label>
+                            <select class="form-select @error('payment_method') is-invalid @enderror" 
+                                    id="payment_method" name="payment_method">
+                                <option value="">選択してください</option>
+                                <option value="bank_transfer" {{ old('payment_method', $customer->payment_method) == 'bank_transfer' ? 'selected' : '' }}>銀行振込</option>
+                                <option value="direct_debit" {{ old('payment_method', $customer->payment_method) == 'direct_debit' ? 'selected' : '' }}>口座振替</option>
+                                <option value="cash" {{ old('payment_method', $customer->payment_method) == 'cash' ? 'selected' : '' }}>現金</option>
+                                <option value="credit_card" {{ old('payment_method', $customer->payment_method) == 'credit_card' ? 'selected' : '' }}>クレジットカード</option>
+                            </select>
+                            @error('payment_method')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
-                        <div class="col-md-3">
-                            <label for="branch_code" class="form-label">支店コード（3桁）</label>
-                            <input type="text" class="form-control @error('branch_code') is-invalid @enderror" 
-                                   id="branch_code" name="branch_code" value="{{ old('branch_code', $customer->branch_code) }}" maxlength="3">
-                            @error('branch_code')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                        <div class="col-md-4">
+                            <label for="billing_amount" class="form-label">請求金額</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" step="0.01" min="0" 
+                                       class="form-control @error('billing_amount') is-invalid @enderror" 
+                                       id="billing_amount" name="billing_amount" 
+                                       value="{{ old('billing_amount', $customer->billing_amount) }}">
+                            </div>
+                            @error('billing_amount')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-6">
-                            <label for="bank_name" class="form-label">銀行名</label>
-                            <input type="text" class="form-control" id="bank_name" name="bank_name" 
-                                   value="{{ old('bank_name', $customer->bank_name) }}" readonly>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="branch_name" class="form-label">支店名</label>
-                            <input type="text" class="form-control" id="branch_name" name="branch_name" 
-                                   value="{{ old('branch_name', $customer->branch_name) }}" readonly>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="account_name" class="form-label">口座名義</label>
-                            <input type="text" class="form-control @error('account_name') is-invalid @enderror" 
-                                   id="account_name" name="account_name" value="{{ old('account_name', $customer->account_name) }}">
-                            @error('account_name')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <label for="collection_request_amount" class="form-label">徴収請求額</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" step="0.01" min="0" 
+                                       class="form-control @error('collection_request_amount') is-invalid @enderror" 
+                                       id="collection_request_amount" name="collection_request_amount" 
+                                       value="{{ old('collection_request_amount', $customer->collection_request_amount) }}">
+                            </div>
+                            @error('collection_request_amount')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-6">
-                            <label for="account_kana" class="form-label">口座名義（カナ）</label>
-                            <input type="text" class="form-control @error('account_kana') is-invalid @enderror" 
-                                   id="account_kana" name="account_kana" value="{{ old('account_kana', $customer->account_kana) }}">
-                            @error('account_kana')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        <div class="col-md-6">
-                            <label for="account_ghana" class="form-label">口座ガーナ</label>
-                            <input type="text" class="form-control @error('account_ghana') is-invalid @enderror" 
-                                   id="account_ghana" name="account_ghana" value="{{ old('account_ghana', $customer->account_ghana) }}">
-                            @error('account_ghana')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        <div class="col-md-6">
-                            <label for="account_number" class="form-label">口座番号</label>
-                            <input type="text" class="form-control @error('account_number') is-invalid @enderror" 
-                                   id="account_number" name="account_number" value="{{ old('account_number', $customer->account_number) }}">
-                            @error('account_number')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        <div class="col-md-6">
-                            <label for="account_holder" class="form-label">口座名義人</label>
-                            <input type="text" class="form-control @error('account_holder') is-invalid @enderror" 
-                                   id="account_holder" name="account_holder" value="{{ old('account_holder', $customer->account_holder) }}">
-                            @error('account_holder')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        <div class="col-md-6">
-                            <label for="deposit_type" class="form-label">預金種別</label>
-                            <input type="text" class="form-control @error('deposit_type') is-invalid @enderror" 
-                                   id="deposit_type" name="deposit_type" value="{{ old('deposit_type', $customer->deposit_type) }}">
-                            @error('deposit_type')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        <div class="col-12">
-                            <label for="bank_note" class="form-label">銀行メモ</label>
-                            <textarea class="form-control @error('bank_note') is-invalid @enderror" 
-                                      id="bank_note" name="bank_note" rows="2">{{ old('bank_note', $customer->bank_note) }}</textarea>
-                            @error('bank_note')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <label for="consumption_tax" class="form-label">消費税</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" step="0.01" min="0" 
+                                       class="form-control @error('consumption_tax') is-invalid @enderror" 
+                                       id="consumption_tax" name="consumption_tax" 
+                                       value="{{ old('consumption_tax', $customer->consumption_tax) }}">
+                            </div>
+                            @error('consumption_tax')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
                             @enderror
                         </div>
                     </div>
                 </div>
+            </div>
 
-	            <!-- 請求・法務情報 -->
-	            <div class="card mb-4">
-	                <div class="card-header">
-	                    <h5 class="mb-0">請求・法務情報</h5>
-	                </div>
-	                <div class="card-body">
-	                    <div class="row g-3">
-	                        <div class="col-md-4">
-	                            <label for="payment_method" class="form-label">支払方法</label>
-	                            <select id="payment_method" name="payment_method" class="form-select @error('payment_method') is-invalid @enderror">
-	                                <option value="">選択してください</option>
-	                                <option value="bank_transfer" {{ old('payment_method', $customer->payment_method) == 'bank_transfer' ? 'selected' : '' }}>銀行振込</option>
-	                                <option value="cash_on_delivery" {{ old('payment_method', $customer->payment_method) == 'cash_on_delivery' ? 'selected' : '' }}>代金引換</option>
-	                                <option value="credit_card" {{ old('payment_method', $customer->payment_method) == 'credit_card' ? 'selected' : '' }}>クレジットカード</option>
-	                                <option value="cash" {{ old('payment_method', $customer->payment_method) == 'cash' ? 'selected' : '' }}>現金</option>
-	                            </select>
-	                            @error('payment_method')
-	                                <div class="invalid-feedback">{{ $message }}</div>
-	                            @enderror
-	                        </div>
-	                        <div class="col-md-4">
-	                            <label for="rental_fee" class="form-label">レンタル料金</label>
-	                            <div class="input-group">
-	                                <span class="input-group-text">¥</span>
-	                                <input type="number" step="0.01" min="0" class="form-control @error('rental_fee') is-invalid @enderror" id="rental_fee" name="rental_fee" value="{{ old('rental_fee', $customer->rental_fee) }}">
-	                            </div>
-	                            @error('rental_fee')
-	                                <div class="invalid-feedback d-block">{{ $message }}</div>
-	                            @enderror
-	                        </div>
-	                        <div class="col-md-4">
-	                            <label for="assembly_delivery_costs" class="form-label">組立/配送料</label>
-	                            <div class="input-group">
-	                                <span class="input-group-text">¥</span>
-	                                <input type="number" step="0.01" min="0" class="form-control @error('assembly_delivery_costs') is-invalid @enderror" id="assembly_delivery_costs" name="assembly_delivery_costs" value="{{ old('assembly_delivery_costs', $customer->assembly_delivery_costs) }}">
-	                            </div>
-	                            @error('assembly_delivery_costs')
-	                                <div class="invalid-feedback d-block">{{ $message }}</div>
-	                            @enderror
-	                        </div>
+            <!-- 請求先情報 -->
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>請求先情報</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="billing_postal_code" class="form-label">請求先郵便番号</label>
+                            <input type="text" class="form-control @error('billing_postal_code') is-invalid @enderror" 
+                                   id="billing_postal_code" name="billing_postal_code" 
+                                   value="{{ old('billing_postal_code', $customer->billing_postal_code) }}" 
+                                   placeholder="例: 123-4567">
+                            @error('billing_postal_code')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="billing_prefecture" class="form-label">請求先県名</label>
+                            <input type="text" class="form-control @error('billing_prefecture') is-invalid @enderror" 
+                                   id="billing_prefecture" name="billing_prefecture" 
+                                   value="{{ old('billing_prefecture', $customer->billing_prefecture) }}" 
+                                   placeholder="例: 東京都">
+                            @error('billing_prefecture')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="billing_city" class="form-label">請求先市区町村</label>
+                            <input type="text" class="form-control @error('billing_city') is-invalid @enderror" 
+                                   id="billing_city" name="billing_city" 
+                                   value="{{ old('billing_city', $customer->billing_city) }}" 
+                                   placeholder="例: 新宿区">
+                            @error('billing_city')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-8">
+                            <label for="billing_street" class="form-label">請求先番地</label>
+                            <input type="text" class="form-control @error('billing_street') is-invalid @enderror" 
+                                   id="billing_street" name="billing_street" 
+                                   value="{{ old('billing_street', $customer->billing_street) }}" 
+                                   placeholder="例: 西新宿1-2-3 ABCビル4F">
+                            @error('billing_street')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="billing_difference" class="form-label">請求先差額</label>
+                            <div class="input-group">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" step="0.01" 
+                                       class="form-control @error('billing_difference') is-invalid @enderror" 
+                                       id="billing_difference" name="billing_difference" 
+                                       value="{{ old('billing_difference', $customer->billing_difference) }}">
+                            </div>
+                            @error('billing_difference')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-	                        <div class="col-md-4">
-	                            <label for="district_court" class="form-label">管轄裁判所</label>
-	                            <input type="text" class="form-control @error('district_court') is-invalid @enderror" id="district_court" name="district_court" value="{{ old('district_court', $customer->district_court) }}">
-	                            @error('district_court')
-	                                <div class="invalid-feedback">{{ $message }}</div>
-	                            @enderror
-	                        </div>
-	                        <div class="col-md-4">
-	                            <label class="form-label d-block">請求有無</label>
-	                            <div class="form-check form-switch">
-	                                <input class="form-check-input" type="checkbox" id="billable" name="billable" value="1" {{ old('billable', $customer->billable) ? 'checked' : '' }}>
-	                                <label class="form-check-label" for="billable">請求対象</label>
-	                            </div>
-	                        </div>
-	                        <div class="col-md-4">
-	                            <label for="subject" class="form-label">件名</label>
-	                            <input type="text" class="form-control @error('subject') is-invalid @enderror" id="subject" name="subject" value="{{ old('subject', $customer->subject) }}">
-	                            @error('subject')
-	                                <div class="invalid-feedback">{{ $message }}</div>
-	                            @enderror
-	                        </div>
-
-	                        <div class="col-md-6">
-	                            <label for="salesperson" class="form-label">営業担当</label>
-	                            <input type="text" class="form-control @error('salesperson') is-invalid @enderror" id="salesperson" name="salesperson" value="{{ old('salesperson', $customer->salesperson) }}">
-	                            @error('salesperson')
-	                                <div class="invalid-feedback">{{ $message }}</div>
-	                            @enderror
-	                        </div>
-	                        <div class="col-md-6">
-	                            <label for="address_operator" class="form-label">住所担当者</label>
-	                            <input type="text" class="form-control @error('address_operator') is-invalid @enderror" id="address_operator" name="address_operator" value="{{ old('address_operator', $customer->address_operator) }}">
-	                            @error('address_operator')
-	                                <div class="invalid-feedback">{{ $message }}</div>
-	                            @enderror
-	                        </div>
-	                    </div>
-	                </div>
-	            </div>
-
-	            <!-- スケジュール / ケア -->
-	            <div class="card mb-4">
-	                <div class="card-header">
-	                    <h5 class="mb-0">スケジュール / ケア</h5>
-	                </div>
-	                <div class="card-body">
-	                    <div class="row g-3">
-	                        <div class="col-md-4">
-	                            <label for="last_visit_date" class="form-label">最終訪問日</label>
-	                            <input type="date" class="form-control @error('last_visit_date') is-invalid @enderror" id="last_visit_date" name="last_visit_date" value="{{ old('last_visit_date', optional($customer->last_visit_date)->format('Y-m-d')) }}">
-	                            @error('last_visit_date')
-	                                <div class="invalid-feedback">{{ $message }}</div>
-	                            @enderror
-	                        </div>
-	                        <div class="col-md-4">
-	                            <label for="next_visit_date" class="form-label">次回訪問日</label>
-	                            <input type="date" class="form-control @error('next_visit_date') is-invalid @enderror" id="next_visit_date" name="next_visit_date" value="{{ old('next_visit_date', optional($customer->next_visit_date)->format('Y-m-d')) }}">
-	                            @error('next_visit_date')
-	                                <div class="invalid-feedback">{{ $message }}</div>
-	                            @enderror
-	                        </div>
-	                        <div class="col-md-4">
-	                            <label for="reception_date" class="form-label">受付日</label>
-	                            <input type="date" class="form-control @error('reception_date') is-invalid @enderror" id="reception_date" name="reception_date" value="{{ old('reception_date', optional($customer->reception_date)->format('Y-m-d')) }}">
-	                            @error('reception_date')
-	                                <div class="invalid-feedback">{{ $message }}</div>
-	                            @enderror
-	                        </div>
-	                        <div class="col-md-6">
-	                            <label for="residence" class="form-label">居住形態</label>
-	                            <input type="text" class="form-control @error('residence') is-invalid @enderror" id="residence" name="residence" value="{{ old('residence', $customer->residence) }}">
-	                            @error('residence')
-	                                <div class="invalid-feedback">{{ $message }}</div>
-	                            @enderror
-	                        </div>
-	                        <div class="col-md-6">
-	                            <label for="care_manager" class="form-label">ケアマネージャー</label>
-	                            <input type="text" class="form-control @error('care_manager') is-invalid @enderror" id="care_manager" name="care_manager" value="{{ old('care_manager', $customer->care_manager) }}">
-	                            @error('care_manager')
-	                                <div class="invalid-feedback">{{ $message }}</div>
-	                            @enderror
-	                        </div>
-	                    </div>
+            <!-- 銀行情報 -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-university me-2"></i>銀行情報</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                                                <div class="col-md-3">
+                            <label for="bank_number" class="form-label">銀行番号</label>
+                            <input type="text" class="form-control @error('bank_number') is-invalid @enderror" 
+                                   id="bank_number" name="bank_number" 
+                                   value="{{ old('bank_number', $customer->bank_number) }}" 
+                                   maxlength="4" placeholder="例: 0001">
+                            @error('bank_number')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-3">
+                            <label for="bank_name" class="form-label">銀行名</label>
+                            <input type="text" class="form-control @error('bank_name') is-invalid @enderror" 
+                                   id="bank_name" name="bank_name" 
+                                   value="{{ old('bank_name', $customer->bank_name) }}" 
+                                   placeholder="例: みずほ銀行">
+                            @error('bank_name')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-3">
+                            <label for="branch_number" class="form-label">支店番号</label>
+                            <input type="text" class="form-control @error('branch_number') is-invalid @enderror" 
+                                   id="branch_number" name="branch_number" 
+                                   value="{{ old('branch_number', $customer->branch_number) }}" 
+                                   maxlength="3" placeholder="例: 001">
+                            @error('branch_number')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-3">
+                            <label for="branch_name" class="form-label">支店名</label>
+                            <input type="text" class="form-control @error('branch_name') is-invalid @enderror" 
+                                   id="branch_name" name="branch_name" 
+                                   value="{{ old('branch_name', $customer->branch_name) }}" 
+                                   placeholder="例: 東京営業部">
+                            @error('branch_name')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="deposit_type" class="form-label">預金種目</label>
+                            <select class="form-select @error('deposit_type') is-invalid @enderror" 
+                                    id="deposit_type" name="deposit_type">
+                                <option value="">選択してください</option>
+                                <option value="普通" {{ old('deposit_type', $customer->deposit_type) == '普通' ? 'selected' : '' }}>普通預金</option>
+                                <option value="当座" {{ old('deposit_type', $customer->deposit_type) == '当座' ? 'selected' : '' }}>当座預金</option>
+                                <option value="定期" {{ old('deposit_type', $customer->deposit_type) == '定期' ? 'selected' : '' }}>定期預金</option>
+                            </select>
+                            @error('deposit_type')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="account_number" class="form-label">口座番号</label>
+                            <input type="text" class="form-control @error('account_number') is-invalid @enderror" 
+                                   id="account_number" name="account_number" 
+                                   value="{{ old('account_number', $customer->account_number) }}" 
+                                   placeholder="例: 1234567">
+                            @error('account_number')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
 	                </div>
 	            </div>
             </div>
 
+
+
+            <!-- ボタン -->
             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                <a href="{{ route('customers.index') }}" class="btn btn-outline-secondary me-md-2">キャンセル</a>
+                <a href="{{ route('customers.index') }}" class="btn btn-outline-secondary me-md-2">
+                    <i class="fas fa-times me-1"></i> キャンセル
+                </a>
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-save me-1"></i> 顧客を更新
                 </button>
@@ -376,61 +352,126 @@
 
 @section('scripts')
 <script>
-$(document).ready(function() {
-    // Auto-populate bank name when bank code is entered
-    $('#bank_code').on('input', function() {
-        const bankCode = $(this).val();
-        if (bankCode.length === 4) {
-            $.get('{{ route("customers.get-bank-name") }}', { bank_code: bankCode })
-                .done(function(data) {
-                    $('#bank_name').val(data.bank_name || '');
-                })
-                .fail(function(xhr) {
-                    $('#bank_name').val('');
-                    var msg = '銀行名の取得に失敗しました。しばらくしてから再試行してください。';
-                    if (xhr && xhr.responseJSON && xhr.responseJSON.error) {
-                        msg = xhr.responseJSON.error;
-                    }
-                    if (window.showToast) window.showToast('error', msg);
-                });
-        } else {
-            $('#bank_name').val('');
-        }
-    });
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-populate bank name when bank number is entered
+    const bankNumberInput = document.getElementById('bank_number');
+    const bankNameInput = document.getElementById('bank_name');
+    
+    if (bankNumberInput && bankNameInput) {
+        bankNumberInput.addEventListener('input', function() {
+            const bankNumber = this.value.trim();
+            
+            // Only allow numeric input
+            this.value = bankNumber.replace(/\D/g, '');
+            
+            if (this.value.length === 4) {
+                // Show loading state
+                bankNameInput.value = '取得中...';
+                bankNameInput.disabled = true;
+                
+                fetch(`{{ route("customers.get-bank-name") }}?bank_code=${this.value}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        bankNameInput.value = data.bank_name || '';
+                        bankNameInput.disabled = false;
+                        
+                        if (!data.bank_name) {
+                            showToast('warning', '銀行名が見つかりませんでした。手動で入力してください。');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Bank API error:', error);
+                        bankNameInput.value = '';
+                        bankNameInput.disabled = false;
+                        showToast('error', '銀行名の取得に失敗しました。手動で入力してください。');
+                    });
+            } else {
+                bankNameInput.value = '';
+                bankNameInput.disabled = false;
+            }
+        });
+    }
 
-    // Auto-populate branch name when branch code is entered
-    $('#branch_code').on('input', function() {
-        const branchCode = $(this).val();
-        if (branchCode.length === 3) {
-            $.get('{{ route("customers.get-branch-name") }}', { branch_code: branchCode })
-                .done(function(data) {
-                    $('#branch_name').val(data.branch_name || '');
-                })
-                .fail(function(xhr) {
-                    $('#branch_name').val('');
-                    var msg = '支店名の取得に失敗しました。しばらくしてから再試行してください。';
-                    if (xhr && xhr.responseJSON && xhr.responseJSON.error) {
-                        msg = xhr.responseJSON.error;
-                    }
-                    if (window.showToast) window.showToast('error', msg);
-                });
-        } else {
-            $('#branch_name').val('');
-        }
-    });
+    // Auto-populate branch name when branch number is entered
+    const branchNumberInput = document.getElementById('branch_number');
+    const branchNameInput = document.getElementById('branch_name');
+    
+    if (branchNumberInput && branchNameInput) {
+        branchNumberInput.addEventListener('input', function() {
+            const branchNumber = this.value.trim();
+            const bankNumber = bankNumberInput ? bankNumberInput.value.trim() : '';
+            
+            // Only allow numeric input
+            this.value = branchNumber.replace(/\D/g, '');
+            
+            if (this.value.length === 3 && bankNumber.length === 4) {
+                // Show loading state
+                branchNameInput.value = '取得中...';
+                branchNameInput.disabled = true;
+                
+                fetch(`{{ route("customers.get-branch-name") }}?bank_code=${bankNumber}&branch_code=${this.value}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        branchNameInput.value = data.branch_name || '';
+                        branchNameInput.disabled = false;
+                        
+                        if (!data.branch_name) {
+                            showToast('warning', '支店名が見つかりませんでした。手動で入力してください。');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Branch API error:', error);
+                        branchNameInput.value = '';
+                        branchNameInput.disabled = false;
+                        showToast('error', '支店名の取得に失敗しました。手動で入力してください。');
+                    });
+            } else {
+                branchNameInput.value = '';
+                branchNameInput.disabled = false;
+            }
+        });
+    }
 
-	    // 数字のみ許可（銀行/支店コード）
-	    $('#bank_code, #branch_code').on('input', function() {
-	        this.value = this.value.replace(/\D/g, '');
-	    });
+    // Form validation
+    const form = document.getElementById('customerForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const customerNumber = document.getElementById('customer_number').value.trim();
+            
+            if (!customerNumber) {
+                e.preventDefault();
+                showToast('error', '顧客番号は必須です。');
+                document.getElementById('customer_number').focus();
+                return false;
+            }
+        });
+    }
 
-	    // 請求の切替で件名の有効/無効を制御
-	    function toggleSubject() {
-	        const isBillable = $('#billable').is(':checked');
-	        $('#subject').prop('disabled', !isBillable);
-	    }
-	    $('#billable').on('change', toggleSubject);
-	    toggleSubject();
+    // Toast notification function
+    function showToast(type, message) {
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
+        toast.style.top = '20px';
+        toast.style.right = '20px';
+        toast.style.zIndex = '9999';
+        toast.style.minWidth = '300px';
+        
+        toast.innerHTML = `
+            <i class="fas fa-${type === 'error' ? 'exclamation-circle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.remove();
+            }
+        }, 5000);
+    }
 });
 </script>
 @endsection

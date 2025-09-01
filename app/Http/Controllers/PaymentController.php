@@ -215,7 +215,7 @@ class PaymentController extends Controller
 
     public function create()
     {
-        $customers = Customer::orderBy('name')->get();
+        $customers = Customer::orderBy('user_name')->get();
         return view('payments.create', compact('customers'));
     }
 
@@ -320,7 +320,7 @@ class PaymentController extends Controller
 
     public function edit(Payment $payment)
     {
-        $customers = Customer::orderBy('name')->get();
+        $customers = Customer::orderBy('user_name')->get();
         return view('payments.edit', compact('payment', 'customers'));
     }
 

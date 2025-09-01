@@ -1,38 +1,92 @@
 @extends('layouts.app')
 
 @section('content')
-    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-        <h1 class="h2">顧客データ一括取込 (XLSX)</h1>
-        <div class="btn-toolbar mb-2 mb-md-0">
-            <a href="{{ route('customers.index') }}" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left me-1"></i> 顧客一覧に戻る
-            </a>
+<div class="import-container">
+    <!-- Hero Header -->
+    <div class="import-hero" data-aos="fade-down">
+        <div class="hero-content">
+            <div class="hero-text">
+                <h1 class="hero-title">
+                    <span class="title-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </span>
+                    顧客データ一括取込
+                    <span class="title-accent">XLSX Import</span>
+                </h1>
+                <p class="hero-subtitle">効率的なデータ管理で業務を加速</p>
+            </div>
+            <div class="hero-actions">
+                <a href="{{ route('customers.index') }}" class="btn-modern btn-back">
+                    <div class="btn-icon">
+                        <i class="fas fa-arrow-left"></i>
+                    </div>
+                    <span class="btn-text">一覧に戻る</span>
+                    <div class="btn-shine"></div>
+                </a>
+            </div>
+        </div>
+        <div class="hero-decoration">
+            <div class="floating-elements">
+                <div class="floating-icon" style="--delay: 0s">
+                    <i class="fas fa-file-excel"></i>
+                </div>
+                <div class="floating-icon" style="--delay: 1s">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="floating-icon" style="--delay: 2s">
+                    <i class="fas fa-database"></i>
+                </div>
+            </div>
         </div>
     </div>
 
-    @if (session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="fas fa-check-circle me-2"></i>
-            {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
+    <!-- Modern Alert Messages -->
+    <div class="alerts-container" data-aos="fade-up" data-aos-delay="200">
+        @if (session('success'))
+            <div class="modern-alert success-alert" data-aos="slide-right" data-aos-delay="300">
+                <div class="alert-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="alert-content">
+                    <div class="alert-title">成功</div>
+                    <div class="alert-message">{{ session('success') }}</div>
+                </div>
+                <button type="button" class="alert-close" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        @endif
 
-    @if (session('warning'))
-        <div class="alert alert-warning alert-dismissible fade show" role="alert">
-            <i class="fas fa-exclamation-triangle me-2"></i>
-            {{ session('warning') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
+        @if (session('warning'))
+            <div class="modern-alert warning-alert" data-aos="slide-right" data-aos-delay="350">
+                <div class="alert-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="alert-content">
+                    <div class="alert-title">警告</div>
+                    <div class="alert-message">{{ session('warning') }}</div>
+                </div>
+                <button type="button" class="alert-close" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        @endif
 
-    @if (session('error'))
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <i class="fas fa-times-circle me-2"></i>
-            {{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
+        @if (session('error'))
+            <div class="modern-alert error-alert" data-aos="slide-right" data-aos-delay="400">
+                <div class="alert-icon">
+                    <i class="fas fa-times-circle"></i>
+                </div>
+                <div class="alert-content">
+                    <div class="alert-title">エラー</div>
+                    <div class="alert-message">{{ session('error') }}</div>
+                </div>
+                <button type="button" class="alert-close" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        @endif
+    </div>
 
     <div class="row">
         <div class="col-lg-8">

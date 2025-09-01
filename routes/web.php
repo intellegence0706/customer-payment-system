@@ -16,14 +16,14 @@ Route::get('/register', [AuthController::class, 'showRegister'])->name('register
 Route::post('/register', [AuthController::class, 'register']);
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
-    
-    
+    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');  
     Route::resource('customers', CustomerController::class);
     Route::get('customers-export-csv', [CustomerController::class, 'exportCsv'])->name('customers.export-csv');
     Route::get('customers-export-xlsx', [CustomerController::class, 'exportXlsx'])->name('customers.export-xlsx');
     Route::get('customers/import', [CustomerController::class, 'showImportForm'])->name('customers.import');
-    Route::post('customers/import-xlsx', [CustomerController::class, 'importXlsxCustomers'])->name('customers.import-xlsx');
+    Route::post('customers/import', [CustomerController::class, 'import'])->name('customers.import');
+    
+    // API endpoints for bank and branch name retrieval
     Route::get('api/bank-name', [CustomerController::class, 'getBankName'])->name('customers.get-bank-name');
     Route::get('api/branch-name', [CustomerController::class, 'getBranchName'])->name('customers.get-branch-name');
 

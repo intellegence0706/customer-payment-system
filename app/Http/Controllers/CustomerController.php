@@ -18,27 +18,38 @@ class CustomerController extends Controller
     {
         $query = Customer::query();
 
-        // Search functional
+        // Search functionality
         if ($request->filled('search')) {
             $search = $request->get('search');
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
+                $q->where('user_name', 'like', "%{$search}%")
+                  ->orWhere('user_kana_name', 'like', "%{$search}%")
                   ->orWhere('customer_number', 'like', "%{$search}%")
-                  ->orWhere('phone_number', 'like', "%{$search}%")
+                  ->orWhere('customer_code', 'like', "%{$search}%")
                   ->orWhere('account_number', 'like', "%{$search}%");
             });
         }
 
-        // Filter by gender
-        if ($request->filled('gender')) {
-            $query->where('gender', $request->get('gender'));
+        // Filter by customer code
+        if ($request->filled('customer_code')) {
+            $query->where('customer_code', 'like', "%{$request->get('customer_code')}%");
         }
 
+        // Filter by payment classification
+        if ($request->filled('payment_classification')) {
+            $query->where('payment_classification', $request->get('payment_classification'));
+        }
+
+        // Filter by bank name
         if ($request->filled('bank_name')) {
             $query->where('bank_name', 'like', "%{$request->get('bank_name')}%");
         }
 
-        $customers = $query->paginate(20);
+        if ($request->filled('branch_name')) {
+            $query->where('branch_name', 'like', "%{$request->get('branch_name')}%");
+        }
+
+        $customers = $query->orderBy('user_name', 'asc')->paginate(20);
 
         return view('customers.index', compact('customers'));
     }
@@ -57,49 +68,53 @@ class CustomerController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'name_kana' => 'nullable|string|max:255',
-            'ghana' => 'nullable|string|max:255',
-            'gender' => 'required|in:male,female,other',
-            'date_of_birth' => 'nullable|date',
-            'postal_code' => 'nullable|string|max:20',
-            'prefecture' => 'nullable|string|max:255',
-            'city' => 'nullable|string|max:255',
-            'address_line' => 'nullable|string|max:255',
-            'building' => 'nullable|string|max:255',
-            'address' => 'nullable|string',
-            'phone_number' => 'nullable|string|max:20',
-            'telephone_number' => 'nullable|string|max:20',
-            'mobile_number' => 'nullable|string|max:20',
-            'note' => 'nullable|string',
-            'bank_code' => 'nullable|digits:4',
-            'branch_code' => 'nullable|digits:3',
-            'account_name' => 'nullable|string|max:255',
-            'account_kana' => 'nullable|string|max:255',
-            'account_ghana' => 'nullable|string|max:255',
-            'account_number' => 'nullable|string|max:50',
-            'account_holder' => 'nullable|string|max:255',
-            'deposit_type' => 'nullable|string|max:50',
-            'customer_number' => 'required|string|max:50|unique:customers',
-            'bank_note' => 'nullable|string',
-            'last_visit_date' => 'nullable|date',
-            'next_visit_date' => 'nullable|date',
-            'reception_date' => 'nullable|date',
-            'residence' => 'nullable|string|max:255',
-            'care_manager' => 'nullable|string|max:255',
+            // Basic customer information
+            'customer_code' => 'nullable|string|max:50',
+            'user_kana_name' => 'nullable|string|max:100',
+            'user_name' => 'nullable|string|max:100',
+            'account_kana_name' => 'nullable|string|max:100',
+            'account_holder_name' => 'nullable|string|max:100',
+            
+            // Payment information
+            'payment_classification' => 'nullable|string|max:10',
             'payment_method' => 'nullable|string|max:255',
-            'rental_fee' => 'nullable|numeric',
-            'assembly_delivery_costs' => 'nullable|numeric',
-            'district_court' => 'nullable|string|max:255',
-            'billable' => 'nullable|boolean',
-            'subject' => 'nullable|string|max:255',
-            'salesperson' => 'nullable|string|max:255',
-            'address_operator' => 'nullable|string|max:255',
+            'billing_amount' => 'nullable|numeric|between:0,999999999.99',
+            'collection_request_amount' => 'nullable|numeric|between:0,999999999.99',
+            'consumption_tax' => 'nullable|numeric|between:0,999999999.99',
+            
+            // Banking information
+            'bank_number' => 'nullable|string|max:10',
+            'bank_name' => 'nullable|string|max:255',
+            'branch_number' => 'nullable|string|max:10',
+            'branch_name' => 'nullable|string|max:255',
+            'deposit_type' => 'nullable|string|max:50',
+            'account_number' => 'nullable|string|max:50',
+            'customer_number' => 'required|string|max:50|unique:customers',
+            
+            // Billing address
+            'billing_postal_code' => 'nullable|string|max:10',
+            'billing_prefecture' => 'nullable|string|max:50',
+            'billing_city' => 'nullable|string|max:100',
+            'billing_street' => 'nullable|string|max:200',
+            'billing_difference' => 'nullable|numeric|between:-999999999.99,999999999.99',
         ]);
         
-        Customer::create($validated);
-        return redirect()->route('customers.index')
-            ->with('success', '顧客情報が正常に追加されました。');
+        try {
+            Customer::create($validated);
+            
+            return redirect()->route('customers.index')
+                ->with('success', '顧客情報が正常に追加されました。');
+                
+        } catch (\Exception $e) {
+            Log::error('Customer creation failed', [
+                'error' => $e->getMessage(),
+                'data' => $validated
+            ]);
+            
+            return back()
+                ->withInput()
+                ->with('error', '顧客情報の追加に失敗しました。再度お試しください。');
+        }
     }
 
     public function show(Customer $customer)
@@ -116,57 +131,61 @@ class CustomerController extends Controller
     public function update(Request $request, Customer $customer)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'name_kana' => 'nullable|string|max:255',
-            'ghana' => 'nullable|string|max:255',
-            'gender' => 'required|in:male,female,other',
-            'date_of_birth' => 'nullable|date',
-            'postal_code' => 'nullable|string|max:20',
-            'prefecture' => 'nullable|string|max:255',
-            'city' => 'nullable|string|max:255',
-            'address_line' => 'nullable|string|max:255',
-            'building' => 'nullable|string|max:255',
-            'address' => 'nullable|string',
-            'phone_number' => 'nullable|string|max:20',
-            'telephone_number' => 'nullable|string|max:20',
-            'mobile_number' => 'nullable|string|max:20',
-            'note' => 'nullable|string',
-            'bank_code' => 'nullable|digits:4',
-            'branch_code' => 'nullable|digits:3',
-            'account_name' => 'nullable|string|max:255',
-            'account_kana' => 'nullable|string|max:255',
-            'account_ghana' => 'nullable|string|max:255',
-            'account_number' => 'nullable|string|max:50',
-            'account_holder' => 'nullable|string|max:255',
-            'deposit_type' => 'nullable|string|max:50',
-            'customer_number' => 'required|string|max:50|unique:customers,customer_number,' . $customer->id,
-            'bank_note' => 'nullable|string',
-            'last_visit_date' => 'nullable|date',
-            'next_visit_date' => 'nullable|date',
-            'reception_date' => 'nullable|date',
-            'residence' => 'nullable|string|max:255',
-            'care_manager' => 'nullable|string|max:255',
+            // Basic customer information
+            'customer_code' => 'nullable|string|max:50',
+            'user_kana_name' => 'nullable|string|max:100',
+            'user_name' => 'nullable|string|max:100',
+            'account_kana_name' => 'nullable|string|max:100',
+            'account_holder_name' => 'nullable|string|max:100',
+            
+            // Payment information
+            'payment_classification' => 'nullable|string|max:10',
             'payment_method' => 'nullable|string|max:255',
-            'rental_fee' => 'nullable|numeric',
-            'assembly_delivery_costs' => 'nullable|numeric',
-            'district_court' => 'nullable|string|max:255',
-            'billable' => 'nullable|boolean',
-            'subject' => 'nullable|string|max:255',
-            'salesperson' => 'nullable|string|max:255',
-            'address_operator' => 'nullable|string|max:255',
+            'billing_amount' => 'nullable|numeric|between:0,999999999.99',
+            'collection_request_amount' => 'nullable|numeric|between:0,999999999.99',
+            'consumption_tax' => 'nullable|numeric|between:0,999999999.99',
+            
+            // Banking information
+            'bank_number' => 'nullable|string|max:10',
+            'bank_name' => 'nullable|string|max:255',
+            'branch_number' => 'nullable|string|max:10',
+            'branch_name' => 'nullable|string|max:255',
+            'deposit_type' => 'nullable|string|max:50',
+            'account_number' => 'nullable|string|max:50',
+            'customer_number' => 'required|string|max:50|unique:customers,customer_number,' . $customer->id,
+            
+            // Billing address
+            'billing_postal_code' => 'nullable|string|max:10',
+            'billing_prefecture' => 'nullable|string|max:50',
+            'billing_city' => 'nullable|string|max:100',
+            'billing_street' => 'nullable|string|max:200',
+            'billing_difference' => 'nullable|numeric|between:-999999999.99,999999999.99',
         ]);
 
-        $customer->update($validated);
-
-        return redirect()->route('customers.index')
-            ->with('success', '顧客情報が成果的に更新されました。');
+        try {
+            $customer->update($validated);
+            
+            return redirect()->route('customers.index')
+                ->with('success', '顧客情報が正常に更新されました。');
+                
+        } catch (\Exception $e) {
+            Log::error('Customer update failed', [
+                'customer_id' => $customer->id,
+                'error' => $e->getMessage(),
+                'data' => $validated
+            ]);
+            
+            return back()
+                ->withInput()
+                ->with('error', '顧客情報の更新に失敗しました。再度お試しください。');
+        }
     }
 
     public function destroy(Customer $customer)
     {
         $customer->delete();
         return redirect()->route('customers.index')
-            ->with('success', 'お客様の情報が成果的に削除されました。');
+            ->with('success', '顧客情報が正常に削除されました。');
     }
 
     public function exportCsv(Request $request)
@@ -176,18 +195,28 @@ class CustomerController extends Controller
         if ($request->filled('search')) {
             $search = $request->get('search');
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
+                $q->where('user_name', 'like', "%{$search}%")
+                  ->orWhere('user_kana_name', 'like', "%{$search}%")
                   ->orWhere('customer_number', 'like', "%{$search}%")
-                  ->orWhere('phone_number', 'like', "%{$search}%")
+                  ->orWhere('customer_code', 'like', "%{$search}%")
                   ->orWhere('account_number', 'like', "%{$search}%");
             });
         }
 
-        if ($request->filled('gender')) {
-            $query->where('gender', $request->get('gender'));
+        if ($request->filled('customer_code')) {
+            $query->where('customer_code', 'like', "%{$request->get('customer_code')}%");
         }
+
+        if ($request->filled('payment_classification')) {
+            $query->where('payment_classification', $request->get('payment_classification'));
+        }
+
         if ($request->filled('bank_name')) {
             $query->where('bank_name', 'like', "%{$request->get('bank_name')}%");
+        }
+
+        if ($request->filled('branch_name')) {
+            $query->where('branch_name', 'like', "%{$request->get('branch_name')}%");
         }
 
         $customers = $query->get();
@@ -198,313 +227,431 @@ class CustomerController extends Controller
         ];
 
         $callback = function() use ($customers) {
-            
-            echo "\xEF\xBB\xBF";
             $file = fopen('php://output', 'w');
+            
+            // CSV header with all 22 parameters
             fputcsv($file, [
-                'お客様番号', '氏名', 'ガーナ', '性別', '郵便番号', 
-                '住所', '電話番号', 'メモ', '銀行名', '支店名',
-                '口座名義', 'ガーナ口座', '口座番号', '口座名義人', '銀行メモ'
+                '顧客コード',
+                '利用者カナ氏名',
+                '利用者氏名',
+                '口座カナ氏名',
+                '口座人氏名',
+                '支払区分',
+                '支払方法',
+                '請求金額',
+                '徴収請求額',
+                '消費税',
+                '銀行番号',
+                '銀行名',
+                '支店番号',
+                '支店名',
+                '預金種目',
+                '口座番号',
+                '顧客番号',
+                '請求先郵便番号',
+                '請求先県名',
+                '請求先市区町村',
+                '請求先番地',
+                '請求先差額'
             ]);
+
             foreach ($customers as $customer) {
                 fputcsv($file, [
-                    $customer->customer_number,
-                    $customer->name,
-                    $customer->ghana,
-                    $customer->gender,
-                    $customer->postal_code,
-                    $customer->address,
-                    $customer->phone_number,
-                    $customer->note,
+                    $customer->customer_code,
+                    $customer->user_kana_name,
+                    $customer->user_name,
+                    $customer->account_kana_name,
+                    $customer->account_holder_name,
+                    $customer->payment_classification,
+                    $customer->payment_method,
+                    $customer->billing_amount,
+                    $customer->collection_request_amount,
+                    $customer->consumption_tax,
+                    $customer->bank_number,
                     $customer->bank_name,
+                    $customer->branch_number,
                     $customer->branch_name,
-                    $customer->account_name,
-                    $customer->account_ghana,
+                    $customer->deposit_type,
                     $customer->account_number,
-                    $customer->account_holder,
-                    $customer->bank_note,
+                    $customer->customer_number,
+                    $customer->billing_postal_code,
+                    $customer->billing_prefecture,
+                    $customer->billing_city,
+                    $customer->billing_street,
+                    $customer->billing_difference
                 ]);
             }
+
             fclose($file);
         };
 
         return response()->stream($callback, 200, $headers);
     }
 
-    public function getBankName(Request $request)
+    public function exportXlsx(Request $request)
     {
-      
-        $bankCode = $request->string('bank_code')->toString();
-        if ($bankCode === '' || !ctype_digit($bankCode) || strlen($bankCode) !== 4) {
-            return response()->json(['error' => 'bank_code must be 4 digits'], 422);
+        $query = Customer::query();
+
+        if ($request->filled('search')) {
+            $search = $request->get('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('user_name', 'like', "%{$search}%")
+                  ->orWhere('user_kana_name', 'like', "%{$search}%")
+                  ->orWhere('customer_number', 'like', "%{$search}%")
+                  ->orWhere('customer_code', 'like', "%{$search}%")
+                  ->orWhere('account_number', 'like', "%{$search}%");
+            });
         }
 
-        $apiKey = env('BANK_API_KEY');
-        if (empty($apiKey)) {
-            return response()->json(['bank_name' => null, 'cached' => false, 'disabled' => true], 200);
+        if ($request->filled('customer_code')) {
+            $query->where('customer_code', 'like', "%{$request->get('customer_code')}%");
         }
 
-        $cacheKey = "bank-name:{$bankCode}";
-        if (Cache::has($cacheKey)) {
-            return response()->json(['bank_name' => Cache::get($cacheKey), 'cached' => true]);
+        if ($request->filled('payment_classification')) {
+            $query->where('payment_classification', $request->get('payment_classification'));
         }
 
-        try {
-            $response = Http::acceptJson()
-                ->withHeaders(['Authorization' => 'Bearer ' . $apiKey])
-                ->connectTimeout(1)
-                ->timeout(3)
-                ->retry(0, 0)
-                ->get("https://api.bankcode-jp.com/v1/banks/{$bankCode}");
-
-            if ($response->successful()) {
-                $bankData = $response->json();
-                $name = $bankData['bank_name'] ?? null;
-                if ($name) {
-                    Cache::put($cacheKey, $name, now()->addDays(7));
-                    return response()->json(['bank_name' => $name, 'cached' => false]);
-                }
-            }
-        } catch (\Throwable $e) {
-            Log::warning('Bank API failed', ['code' => $bankCode, 'error' => $e->getMessage()]);
+        if ($request->filled('bank_name')) {
+            $query->where('bank_name', 'like', "%{$request->get('bank_name')}%");
         }
-        return response()->json(['error' => 'Bank code not found or unavailable'], 404);
+
+        if ($request->filled('branch_name')) {
+            $query->where('branch_name', 'like', "%{$request->get('branch_name')}%");
+        }
+
+        $customers = $query->get();
+        $filename = '顧客_' . date('Y-m-d_H-i-s') . '.xlsx';
+
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Set headers with all 22 parameters
+        $headers = [
+            'A1' => '顧客コード',
+            'B1' => '利用者カナ氏名',
+            'C1' => '利用者氏名',
+            'D1' => '口座カナ氏名',
+            'E1' => '口座人氏名',
+            'F1' => '支払区分',
+            'G1' => '支払方法',
+            'H1' => '請求金額',
+            'I1' => '徴収請求額',
+            'J1' => '消費税',
+            'K1' => '銀行番号',
+            'L1' => '銀行名',
+            'M1' => '支店番号',
+            'N1' => '支店名',
+            'O1' => '預金種目',
+            'P1' => '口座番号',
+            'Q1' => '顧客番号',
+            'R1' => '請求先郵便番号',
+            'S1' => '請求先県名',
+            'T1' => '請求先市区町村',
+            'U1' => '請求先番地',
+            'V1' => '請求先差額'
+        ];
+
+        foreach ($headers as $cell => $value) {
+            $sheet->setCellValue($cell, $value);
+        }
+
+        // Add data rows
+        $row = 2;
+        foreach ($customers as $customer) {
+            $sheet->setCellValue('A' . $row, $customer->customer_code);
+            $sheet->setCellValue('B' . $row, $customer->user_kana_name);
+            $sheet->setCellValue('C' . $row, $customer->user_name);
+            $sheet->setCellValue('D' . $row, $customer->account_kana_name);
+            $sheet->setCellValue('E' . $row, $customer->account_holder_name);
+            $sheet->setCellValue('F' . $row, $customer->payment_classification);
+            $sheet->setCellValue('G' . $row, $customer->payment_method);
+            $sheet->setCellValue('H' . $row, $customer->billing_amount);
+            $sheet->setCellValue('I' . $row, $customer->collection_request_amount);
+            $sheet->setCellValue('J' . $row, $customer->consumption_tax);
+            $sheet->setCellValue('K' . $row, $customer->bank_number);
+            $sheet->setCellValue('L' . $row, $customer->bank_name);
+            $sheet->setCellValue('M' . $row, $customer->branch_number);
+            $sheet->setCellValue('N' . $row, $customer->branch_name);
+            $sheet->setCellValue('O' . $row, $customer->deposit_type);
+            $sheet->setCellValue('P' . $row, $customer->account_number);
+            $sheet->setCellValue('Q' . $row, $customer->customer_number);
+            $sheet->setCellValue('R' . $row, $customer->billing_postal_code);
+            $sheet->setCellValue('S' . $row, $customer->billing_prefecture);
+            $sheet->setCellValue('T' . $row, $customer->billing_city);
+            $sheet->setCellValue('U' . $row, $customer->billing_street);
+            $sheet->setCellValue('V' . $row, $customer->billing_difference);
+            $row++;
+        }
+
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $tempFile = tempnam(sys_get_temp_dir(), 'customers_export');
+        $writer->save($tempFile);
+
+        return response()->download($tempFile, $filename)->deleteFileAfterSend();
     }
 
-    public function getBranchName(Request $request)
+    public function import(Request $request)
     {
-        $branchCode = $request->string('branch_code')->toString();
-        if ($branchCode === '' || !ctype_digit($branchCode) || strlen($branchCode) !== 3) {
-            return response()->json(['error' => 'branch_code must be 3 digits'], 422);
-        }
-        
-        $apiKey = env('BANK_API_KEY');
-        if (empty($apiKey)) {
-            return response()->json(['branch_name' => null, 'cached' => false, 'disabled' => true], 200);
-        }
-        $cacheKey = "branch-name:{$branchCode}";
-        if (Cache::has($cacheKey)) {
-            return response()->json(['branch_name' => Cache::get($cacheKey), 'cached' => true]);
-        }
-        try {
-            $response = Http::acceptJson()
-                ->withHeaders(['Authorization' => 'Bearer ' . $apiKey])
-                ->connectTimeout(1)
-                ->timeout(3)
-                ->retry(0, 0)
-                ->get("https://api.bankcode-jp.com/v1/branches/{$branchCode}");
-
-            if ($response->successful()) {
-                $branchData = $response->json();
-                $name = $branchData['branch_name'] ?? null;
-                if ($name) {
-                    Cache::put($cacheKey, $name, now()->addDays(7));
-                    return response()->json(['branch_name' => $name, 'cached' => false]);
-                }
-            }
-        } catch (\Throwable $e) {
-            Log::warning('Branch API failed', ['code' => $branchCode, 'error' => $e->getMessage()]);
-        }
-        return response()->json(['error' => 'Branch code not found or unavailable'], 404);
-    }
-
-    /**
-     * Import customers from XLSX file
-     * Maps XLSX columns to customer database fields
-     */
-    public function importXlsxCustomers(Request $request)
-    {
-        // Validate the request
         $request->validate([
-            'customer_file' => 'required|file|mimes:xlsx|max:5120', // 5MB max
-        ], [
-            'customer_file.required' => '顧客データファイルを選択してください。',
-            'customer_file.mimes' => 'ファイルはXLSX形式である必要があります。',
-            'customer_file.max' => 'ファイルサイズは5MB以下である必要があります。',
+            'file' => 'required|file|mimes:xlsx,xls,csv'
         ]);
 
         try {
-            $file = $request->file('customer_file');
-            $path = $file->store('customer_imports');
-            
-            $spreadsheet = IOFactory::load(storage_path('app/' . $path));
-            $worksheet = $spreadsheet->getActiveSheet();
-            $rows = $worksheet->toArray();
-            
-            if (empty($rows) || count($rows) < 2) {
-                throw new \Exception('XLSXファイルが空であるか、データが不足しています。');
-            }
-            
-            $header = array_shift($rows); // Remove header row
-            $data = $rows; // Data rows only
-            
-            $imported = 0;
-            $errors = [];
-            $rowNumber = 1;
-            
-            // Log import attempt
-            Log::info('Customer XLSX Import Started', [
-                'file_path' => $path,
-                'total_rows' => count($data),
-                'header' => $header
-            ]);
-            
-            DB::beginTransaction();
-            
-            try {
-                foreach ($data as $rowData) {
-                    $rowNumber++;
-                    
-                    // Skip empty rows
-                    if (empty(array_filter($rowData))) {
-                        continue;
-                    }
+            $file = $request->file('file');
+            $extension = $file->getClientOriginalExtension();
 
-                    $customerData = $this->mapXlsxToCustomerData($rowData, $header);
-                    
-                    if (empty($customerData['name'])) {
-                        $errors[] = "{$rowNumber}行目: 利用者氏名が必要です。";
-                        continue;
-                    }
-                    
-                    if (empty($customerData['customer_number'])) {
-                        $errors[] = "{$rowNumber}行目: 顧客番号が必要です。";
-                        continue;
-                    }
-                    
-                    $existingCustomer = Customer::where('customer_number', $customerData['customer_number'])->first();
-                    if ($existingCustomer) {
-                        $errors[] = "{$rowNumber}行目: 顧客番号'{$customerData['customer_number']}'は既に存在します。";
-                        continue;
-                    }
-                    
-                    Customer::create($customerData);
-                    $imported++;
-                }
-                
-                DB::commit();
-                
-                // Log successful import
-                Log::info('Customer XLSX Import Completed', [
-                    'imported' => $imported,
-                    'error_count' => count($errors),
-                    'errors' => array_slice($errors, 0, 5)
-                ]);
-                
-            } catch (\Exception $e) {
-                DB::rollBack();
-                throw $e;
+            if ($extension === 'csv') {
+                $this->importCsv($file);
+            } else {
+                $this->importExcel($file);
             }
-            
-            Storage::delete($path);
-            
-            // Generate result message
-            $message = "{$imported}件の顧客データを正常に取り込みました。";
-            if (!empty($errors)) {
-                $message .= " エラー: " . implode('; ', array_slice($errors, 0, 10));
-                if (count($errors) > 10) {
-                    $message .= " (他" . (count($errors) - 10) . "件のエラー)";
-                }
-            }
-            
-            $alertType = !empty($errors) ? 'warning' : 'success';
-            
+
             return redirect()->route('customers.index')
-                ->with($alertType, $message);
+                ->with('success', '顧客データのインポートが完了しました。');
+
+        } catch (\Exception $e) {
+            Log::error('Customer import error: ' . $e->getMessage());
+            return redirect()->back()
+                ->with('error', 'インポート中にエラーが発生しました: ' . $e->getMessage());
+        }
+    }
+
+    private function importCsv($file)
+    {
+        $handle = fopen($file->getPathname(), 'r');
+        $headers = fgetcsv($handle); // Skip header row
+        
+        while (($data = fgetcsv($handle)) !== false) {
+            if (count($data) >= 22) {
+                $this->createCustomerFromArray($data);
+            }
+        }
+        
+        fclose($handle);
+    }
+
+    private function importExcel($file)
+    {
+        $spreadsheet = IOFactory::load($file->getPathname());
+        $worksheet = $spreadsheet->getActiveSheet();
+        $rows = $worksheet->toArray();
+        
+        // Skip header row
+        array_shift($rows);
+        
+        foreach ($rows as $row) {
+            if (count($row) >= 22) {
+                $this->createCustomerFromArray($row);
+            }
+        }
+    }
+
+    private function createCustomerFromArray($data)
+    {
+        $customerData = [
+            'customer_code' => $data[0] ?? null,
+            'user_kana_name' => $data[1] ?? null,
+            'user_name' => $data[2] ?? null,
+            'account_kana_name' => $data[3] ?? null,
+            'account_holder_name' => $data[4] ?? null,
+            'payment_classification' => $data[5] ?? null,
+            'payment_method' => $data[6] ?? null,
+            'billing_amount' => $data[7] ?? null,
+            'collection_request_amount' => $data[8] ?? null,
+            'consumption_tax' => $data[9] ?? null,
+            'bank_number' => $data[10] ?? null,
+            'bank_name' => $data[11] ?? null,
+            'branch_number' => $data[12] ?? null,
+            'branch_name' => $data[13] ?? null,
+            'deposit_type' => $data[14] ?? null,
+            'account_number' => $data[15] ?? null,
+            'customer_number' => $data[16] ?? null,
+            'billing_postal_code' => $data[17] ?? null,
+            'billing_prefecture' => $data[18] ?? null,
+            'billing_city' => $data[19] ?? null,
+            'billing_street' => $data[20] ?? null,
+            'billing_difference' => $data[21] ?? null,
+        ];
+
+        // Only create if customer_number exists and is unique
+        if (!empty($customerData['customer_number'])) {
+            Customer::updateOrCreate(
+                ['customer_number' => $customerData['customer_number']],
+                $customerData
+            );
+        }
+    }
+
+    /**
+     * Get bank name from cloud API
+     */
+    public function getBankName(Request $request)
+    {
+        $request->validate([
+            'bank_code' => 'required|string|size:4|regex:/^\d{4}$/'
+        ]);
+
+        $bankCode = $request->get('bank_code');
+        $cacheKey = "bank_name_{$bankCode}";
+        
+        if (Cache::has($cacheKey)) {
+            return response()->json([
+                'bank_name' => Cache::get($cacheKey),
+                'cached' => true,
+                'source' => 'cache'
+            ]);
+        }
+
+        try {
+            $bankName = $this->callBankAPI($bankCode);
+            
+            if ($bankName) {
+                // Cache for 7 days
+                Cache::put($cacheKey, $bankName, now()->addDays(7));
+                
+                return response()->json([
+                    'bank_name' => $bankName,
+                    'cached' => false,
+                    'source' => 'api'
+                ]);
+            }
+
+            return response()->json([
+                'bank_name' => null,
+                'error' => 'Bank code not found',
+                'cached' => false,
+                'source' => 'api'
+            ], 404);
+
+        } catch (\Exception $e) {
+            Log::warning("Bank API call failed for code: {$bankCode}", ['error' => $e->getMessage()]);
+            
+            return response()->json([
+                'bank_name' => null,
+                'error' => 'API service unavailable',
+                'cached' => false,
+                'source' => 'api'
+            ], 503);
+        }
+    }
+
+    /**
+     * Get branch name from cloud API
+     */
+    public function getBranchName(Request $request)
+    {
+        $request->validate([
+            'bank_code' => 'required|string|size:4|regex:/^\d{4}$/',
+            'branch_code' => 'required|string|size:3|regex:/^\d{3}$/'
+        ]);
+
+        $bankCode = $request->get('bank_code');
+        $branchCode = $request->get('branch_code');
+        $cacheKey = "branch_name_{$bankCode}_{$branchCode}";
+
+        // Check cache first
+        if (Cache::has($cacheKey)) {
+            return response()->json([
+                'branch_name' => Cache::get($cacheKey),
+                'cached' => true,
+                'source' => 'cache'
+            ]);
+        }
+
+        try {
+            $branchName = $this->callBranchAPI($bankCode, $branchCode);
+            
+            if ($branchName) {
+                // Cache for 7 days
+                Cache::put($cacheKey, $branchName, now()->addDays(7));
+                
+                return response()->json([
+                    'branch_name' => $branchName,
+                    'cached' => false,
+                    'source' => 'api'
+                ]);
+            }
+
+            return response()->json([
+                'branch_name' => null,
+                'error' => 'Branch code not found',
+                'cached' => false,
+                'source' => 'api'
+            ], 404);
                 
         } catch (\Exception $e) {
-            if (isset($path) && Storage::exists($path)) {
-                Storage::delete($path);
-            }
+            Log::warning("Branch API call failed for bank: {$bankCode}, branch: {$branchCode}", ['error' => $e->getMessage()]);
             
-            Log::error('Customer XLSX Import Failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            return redirect()->back()
-                ->withInput()
-                ->withErrors(['customer_file' => 'インポートに失敗しました: ' . $e->getMessage()]);
+            return response()->json([
+                'branch_name' => null,
+                'error' => 'API service unavailable',
+                'cached' => false,
+                'source' => 'api'
+            ], 503);
         }
     }
-    
 
-    private function mapXlsxToCustomerData($rowData, $header)
+
+    /**
+     * Call bank API to get bank name by code
+     */
+    private function callBankAPI($code)
     {
-       
-        $columnMap = [];
-        foreach ($header as $index => $columnName) {
-            $columnMap[$columnName] = $index;
-        }
-        
-        $customerData = [
-            'name' => $rowData[$columnMap['利用者氏名'] ?? 0] ?? null,                    // 利用者氏名
-            'name_kana' => $rowData[$columnMap['利用者カナ氏名'] ?? 1] ?? null,           // 利用者カナ氏名
-            'account_kana_name' => $rowData[$columnMap['口座カナ氏名'] ?? 2] ?? null,     // 口座カナ氏名
-            'account_holder_name' => $rowData[$columnMap['口座人氏名'] ?? 3] ?? null,     // 口座人氏名
-            'customer_number' => $rowData[$columnMap['顧客番号'] ?? 4] ?? null,           // 顧客番号
-            'customer_code' => $rowData[$columnMap['顧客コード'] ?? 5] ?? null,           // 顧客コード
-            'payment_classification' => $rowData[$columnMap['支払区分'] ?? 6] ?? null,     // 支払区分
-            'payment_method' => $rowData[$columnMap['支払方法'] ?? 7] ?? null,            // 支払方法
-            'billing_amount' => $this->parseAmount($rowData[$columnMap['請求金額'] ?? 8] ?? null), // 請求金額
-            'adjusted_billing_amount' => $this->parseAmount($rowData[$columnMap['調整請求額'] ?? 9] ?? null), // 調整請求額
-            'consumption_tax' => $this->parseAmount($rowData[$columnMap['消費税'] ?? 10] ?? null), // 消費税
-            'bank_code' => $rowData[$columnMap['銀行番号'] ?? 11] ?? null,                // 銀行番号
-            'bank_name' => $rowData[$columnMap['銀行名'] ?? 12] ?? null,                  // 銀行名
-            'branch_code' => $rowData[$columnMap['支店番号'] ?? 13] ?? null,              // 支店番号
-            'branch_name' => $rowData[$columnMap['支店名'] ?? 14] ?? null,                // 支店名
-            'deposit_type' => $rowData[$columnMap['預金種目'] ?? 15] ?? null,             // 預金種目
-            'account_number' => $rowData[$columnMap['口座番号'] ?? 16] ?? null,           // 口座番号
-            'billing_postal_code' => $rowData[$columnMap['請求先郵便番号'] ?? 17] ?? null, // 請求先郵便番号
-            'billing_prefecture' => $rowData[$columnMap['請求先県名'] ?? 18] ?? null,      // 請求先県名
-            'billing_city' => $rowData[$columnMap['請求先市区町村'] ?? 19] ?? null,        // 請求先市区町村
-            'billing_street_address' => $rowData[$columnMap['請求先番地'] ?? 20] ?? null,  // 請求先番地
-            'billing_building' => $rowData[$columnMap['請求先建物'] ?? 21] ?? null,        // 請求先建物
-            
-          
-            'gender' => 'other', 
-            'ghana' => null,
-            'date_of_birth' => null,
-            'postal_code' => null,
-            'prefecture' => null,
-            'city' => null,
-            'address_line' => null,
-            'building' => null,
-            'address' => null,
-            'phone_number' => null,
-            'telephone_number' => null,
-            'mobile_number' => null,
-            'note' => null,
-            'account_name' => null,
-            'account_kana' => null,
-            'account_ghana' => null,
-            'account_holder' => null,
-            'bank_note' => null,
-            'last_visit_date' => null,
-            'next_visit_date' => null,
-            'reception_date' => null,
-            'residence' => null,
-            'care_manager' => null,
-            'rental_fee' => null,
-            'assembly_delivery_costs' => null,
-            'district_court' => null,
-            'billable' => null,
-            'subject' => null,
-            'salesperson' => null,
-            'address_operator' => null,
-        ];
-        
-        return $customerData;
-    }
-    
- 
-    private function parseAmount($amount)
-    {
-        if (empty($amount)) {
+        $config = config('banking.bankcode_jp');
+        if (!$config['enabled']) {
             return null;
         }
 
-        $cleanAmount = preg_replace('/[^0-9.\-]/', '', (string) $amount);
-        return is_numeric($cleanAmount) ? (float) $cleanAmount : null;
+        try {
+            $endpoint = str_replace('{code}', $code, $config['endpoints']['banks']);
+            $url = $config['base_url'] . $endpoint . '?apiKey=' . $config['api_key'];
+
+            $response = Http::timeout($config['timeout'])->get($url);
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                // API returns 'name' field
+                if (isset($data['name'])) {
+                    return $data['name'];
+                }
+            }
+        } catch (\Exception $e) {
+            Log::debug("Bank API failed for code {$code}: " . $e->getMessage());
+        }
+
+        return null;
+    }
+
+    /**
+     * Call branch API to get branch name by code
+     */
+    private function callBranchAPI($bankCode, $branchCode)
+    {
+        $config = config('banking.bankcode_jp');
+        
+        if (!$config['enabled']) {
+            return null;
+        }
+        try {
+            // Branch API requires both bank code and branch code
+            $endpoint = str_replace(['{bankCode}', '{branchCode}'], [$bankCode, $branchCode], $config['endpoints']['branches']);
+            $url = $config['base_url'] . $endpoint . '?apiKey=' . $config['api_key'];
+
+            $response = Http::timeout($config['timeout'])->get($url);
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                // API returns an array, get the first item's name
+                if (is_array($data) && count($data) > 0 && isset($data[0]['name'])) {
+                    return $data[0]['name'];
+                }
+            }
+        } catch (\Exception $e) {
+            Log::debug("Branch API failed for bank {$bankCode} branch {$branchCode}: " . $e->getMessage());
+        }
+
+        return null;
     }
 }
