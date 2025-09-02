@@ -404,6 +404,16 @@ document.addEventListener('DOMContentLoaded', function() {
             // Only allow numeric input
             this.value = branchNumber.replace(/\D/g, '');
             
+            // Clear branch name if bank number is not complete
+            if (bankNumber.length !== 4) {
+                branchNameInput.value = '';
+                branchNameInput.disabled = false;
+                if (this.value.length > 0) {
+                    showToast('warning', '先に銀行コードを正しく入力してください。');
+                }
+                return;
+            }
+            
             if (this.value.length === 3 && bankNumber.length === 4) {
                 // Show loading state
                 branchNameInput.value = '取得中...';

@@ -102,7 +102,7 @@ cccccc
 php artisan migrate
 
 # Seed database (optional)
-php artisan db:seed
+php artisan db:seed 
 ```
 
 ### 6. Storage Setup

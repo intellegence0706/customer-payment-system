@@ -495,3 +495,27 @@
 #18 /home/ksb/dev/customer-payment-system/artisan(35): Illuminate\\Foundation\\Console\\Kernel->handle()
 #19 {main}
 "} 
+[2025-09-02 13:00:03] local.ERROR: Uncaught BadMethodCallException: Method App\Http\Controllers\CustomerController::getFallbackBankName does not exist. in /home/ksb/dev/customer-payment-system/vendor/laravel/framework/src/Illuminate/Routing/Controller.php:68
+Stack trace:
+#0 Command line code(1): Illuminate\Routing\Controller->__call()
+#1 {main}
+  thrown {"exception":"[object] (Symfony\\Component\\ErrorHandler\\Error\\FatalError(code: 0): Uncaught BadMethodCallException: Method App\\Http\\Controllers\\CustomerController::getFallbackBankName does not exist. in /home/ksb/dev/customer-payment-system/vendor/laravel/framework/src/Illuminate/Routing/Controller.php:68
+Stack trace:
+#0 Command line code(1): Illuminate\\Routing\\Controller->__call()
+#1 {main}
+  thrown at /home/ksb/dev/customer-payment-system/vendor/laravel/framework/src/Illuminate/Routing/Controller.php:68)
+[stacktrace]
+#0 {main}
+"} 
+[2025-09-02 13:12:00] local.WARNING: Bank API rate limit exceeded for code 0001 {"retry_after":"38880","response":{"message":"API rate limit exceeded"}} 
+[2025-09-02 13:12:08] local.WARNING: Bank API rate limit exceeded for code 0001 {"retry_after":"38872","response":{"message":"API rate limit exceeded"}} 
+[2025-09-02 13:12:14] local.WARNING: Bank API rate limit exceeded for code 0001 {"retry_after":"38866","response":{"message":"API rate limit exceeded"}} 
+[2025-09-02 13:12:21] local.WARNING: Bank API rate limit exceeded for code 0001 {"retry_after":"38859","response":{"message":"API rate limit exceeded"}} 
+[2025-09-02 13:12:25] local.WARNING: Bank API rate limit exceeded for code 0005 {"retry_after":"38855","response":{"message":"API rate limit exceeded"}} 
+[2025-09-02 13:14:00] local.WARNING: Bank API rate limit exceeded for code 0001 {"retry_after":"38760","response":{"message":"API rate limit exceeded"}} 
+[2025-09-02 13:59:45] local.WARNING: Bank API rate limit exceeded for code 0001 {"retry_after":"36015","response":{"message":"API rate limit exceeded"}} 
+[2025-09-02 14:00:23] local.WARNING: Bank API rate limit exceeded for code 0002 {"retry_after":"35977","response":{"message":"API rate limit exceeded"}} 
+[2025-09-02 14:00:29] local.WARNING: Bank API rate limit exceeded for code 0005 {"retry_after":"35971","response":{"message":"API rate limit exceeded"}} 
+[2025-09-02 14:02:55] local.WARNING: Bank API rate limit exceeded for code 0005 {"retry_after":"35826","response":{"message":"API rate limit exceeded"}} 
+[2025-09-02 14:11:59] local.WARNING: Bank API rate limit exceeded for code 0001 {"retry_after":"35281","response":{"message":"API rate limit exceeded"}} 
+[2025-09-02 14:15:06] local.WARNING: Bank API rate limit exceeded for code 0001 {"retry_after":"35094","response":{"message":"API rate limit exceeded"}} 

@@ -502,13 +502,24 @@ class CustomerController extends Controller
             ]);
         }
 
+        // First, try fallback database for immediate response
+        $fallbackBankName = $this->getFallbackBankName($bankCode);
+        if ($fallbackBankName) {
+            Cache::put($cacheKey, $fallbackBankName, now()->addDays(1)); // Cache fallback data for 1 day
+            return response()->json([
+                'bank_name' => $fallbackBankName,
+                'cached' => false,
+                'source' => 'offline_database',
+                'note' => 'Using reliable offline database'
+            ]);
+        }
+
+        // If not in fallback database, try API (but only if we haven't exceeded limits)
         try {
             $bankName = $this->callBankAPI($bankCode);
             
             if ($bankName) {
-                // Cache for 7 days
                 Cache::put($cacheKey, $bankName, now()->addDays(7));
-                
                 return response()->json([
                     'bank_name' => $bankName,
                     'cached' => false,
@@ -518,13 +529,25 @@ class CustomerController extends Controller
 
             return response()->json([
                 'bank_name' => null,
-                'error' => 'Bank code not found',
+                'error' => 'Bank code not found in any database',
                 'cached' => false,
-                'source' => 'api'
+                'source' => 'not_found'
             ], 404);
 
         } catch (\Exception $e) {
             Log::warning("Bank API call failed for code: {$bankCode}", ['error' => $e->getMessage()]);
+            
+            // Try fallback bank list when API fails or is rate limited
+            $fallbackBankName = $this->getFallbackBankName($bankCode);
+            if ($fallbackBankName) {
+                Cache::put($cacheKey, $fallbackBankName, now()->addHours(1)); // Cache for shorter time
+                return response()->json([
+                    'bank_name' => $fallbackBankName,
+                    'cached' => false,
+                    'source' => 'fallback',
+                    'note' => 'API rate limited, using offline database'
+                ]);
+            }
             
             return response()->json([
                 'bank_name' => null,
@@ -556,6 +579,30 @@ class CustomerController extends Controller
                 'cached' => true,
                 'source' => 'cache'
             ]);
+        }
+
+        // First, try fallback database for immediate response
+        $fallbackBranchName = $this->getFallbackBranchName($bankCode, $branchCode);
+        if ($fallbackBranchName) {
+            Cache::put($cacheKey, $fallbackBranchName, now()->addDays(1)); // Cache fallback data for 1 day
+            return response()->json([
+                'branch_name' => $fallbackBranchName,
+                'cached' => false,
+                'source' => 'offline_database',
+                'note' => 'Using reliable offline database'
+            ]);
+        }
+
+        // If not in fallback database, validate that the bank exists before trying API
+        $fallbackBankName = $this->getFallbackBankName($bankCode);
+        if (!$fallbackBankName) {
+            return response()->json([
+                'branch_name' => null,
+                'error' => 'Invalid bank code',
+                'cached' => false,
+                'source' => 'validation',
+                'bank_code' => $bankCode
+            ], 400);
         }
 
         try {
@@ -605,7 +652,6 @@ class CustomerController extends Controller
         try {
             $endpoint = str_replace('{code}', $code, $config['endpoints']['banks']);
             $url = $config['base_url'] . $endpoint . '?apiKey=' . $config['api_key'];
-
             $response = Http::timeout($config['timeout'])->get($url);
             
             if ($response->successful()) {
@@ -615,6 +661,14 @@ class CustomerController extends Controller
                 if (isset($data['name'])) {
                     return $data['name'];
                 }
+            } elseif ($response->status() === 429) {
+                // Rate limit exceeded - log and return null to trigger fallback
+                $retryAfter = $response->header('Retry-After');
+                Log::warning("Bank API rate limit exceeded for code {$code}", [
+                    'retry_after' => $retryAfter,
+                    'response' => $response->json()
+                ]);
+                return null;
             }
         } catch (\Exception $e) {
             Log::debug("Bank API failed for code {$code}: " . $e->getMessage());
@@ -653,5 +707,29 @@ class CustomerController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Get bank name from fallback list when API is unavailable
+     */
+    private function getFallbackBankName($bankCode)
+    {
+        $fallbackBanks = config('banks.fallback_banks', []);
+        return $fallbackBanks[$bankCode] ?? null;
+    }
+
+    /**
+     * Get branch name from fallback list with bank validation
+     */
+    private function getFallbackBranchName($bankCode, $branchCode)
+    {
+        $fallbackBranches = config('banks.fallback_branches', []);
+        
+        // Check if bank exists in our fallback data
+        if (!isset($fallbackBranches[$bankCode])) {
+            return null;
+        }
+        
+        return $fallbackBranches[$bankCode][$branchCode] ?? null;
     }
 }

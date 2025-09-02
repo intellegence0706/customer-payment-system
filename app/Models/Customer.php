@@ -73,18 +73,13 @@ class Customer extends Model
     private function getBankNameByAPI($code)
     {
         $cacheKey = "bank_name_{$code}";
-        
-        // Check cache first
+
         if (Cache::has($cacheKey)) {
             return Cache::get($cacheKey);
         }
-
         try {
-            // Try multiple banking APIs for redundancy
-            $bankName = $this->callBankAPI($code);
-            
+            $bankName = $this->callBankAPI($code);            
             if ($bankName) {
-                // Cache for 7 days
                 Cache::put($cacheKey, $bankName, now()->addDays(7));
                 return $bankName;
             }
@@ -161,7 +156,7 @@ class Customer extends Model
         }
 
         try {
-            // Branch API requires both bank code and branch code
+            
             $endpoint = str_replace(['{bankCode}', '{branchCode}'], [$this->bank_number, $branchCode], $config['endpoints']['branches']);
             $url = $config['base_url'] . $endpoint . '?apiKey=' . $config['api_key'];
 
@@ -170,7 +165,6 @@ class Customer extends Model
             if ($response->successful()) {
                 $data = $response->json();
                 
-                // API returns an array, get the first item's name
                 if (is_array($data) && count($data) > 0 && isset($data[0]['name'])) {
                     return $data[0]['name'];
                 }

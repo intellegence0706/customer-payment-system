@@ -463,7 +463,7 @@ class PaymentController extends Controller
                 
                 $data = $rows;
             } else {
-                // Handle CSV/TXT files
+            
                 $fileContent = file_get_contents(storage_path('app/' . $path));
                 $encoding = mb_detect_encoding($fileContent, ['UTF-8', 'SJIS', 'EUC-JP'], true);
                 if ($encoding && $encoding !== 'UTF-8') {
