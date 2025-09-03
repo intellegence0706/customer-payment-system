@@ -30,17 +30,15 @@ class CustomerController extends Controller
             });
         }
 
-        // Filter by customer code
+       
         if ($request->filled('customer_code')) {
             $query->where('customer_code', 'like', "%{$request->get('customer_code')}%");
         }
 
-        // Filter by payment classification
         if ($request->filled('payment_classification')) {
             $query->where('payment_classification', $request->get('payment_classification'));
         }
 
-        // Filter by bank name
         if ($request->filled('bank_name')) {
             $query->where('bank_name', 'like', "%{$request->get('bank_name')}%");
         }
@@ -50,7 +48,6 @@ class CustomerController extends Controller
         }
 
         $customers = $query->orderBy('user_name', 'asc')->paginate(20);
-
         return view('customers.index', compact('customers'));
     }
 
@@ -68,21 +65,17 @@ class CustomerController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            // Basic customer information
+
             'customer_code' => 'nullable|string|max:50',
             'user_kana_name' => 'nullable|string|max:100',
             'user_name' => 'nullable|string|max:100',
             'account_kana_name' => 'nullable|string|max:100',
             'account_holder_name' => 'nullable|string|max:100',
-            
-            // Payment information
             'payment_classification' => 'nullable|string|max:10',
             'payment_method' => 'nullable|string|max:255',
             'billing_amount' => 'nullable|numeric|between:0,999999999.99',
             'collection_request_amount' => 'nullable|numeric|between:0,999999999.99',
             'consumption_tax' => 'nullable|numeric|between:0,999999999.99',
-            
-            // Banking information
             'bank_number' => 'nullable|string|max:10',
             'bank_name' => 'nullable|string|max:255',
             'branch_number' => 'nullable|string|max:10',
@@ -90,12 +83,11 @@ class CustomerController extends Controller
             'deposit_type' => 'nullable|string|max:50',
             'account_number' => 'nullable|string|max:50',
             'customer_number' => 'required|string|max:50|unique:customers',
-            
-            // Billing address
             'billing_postal_code' => 'nullable|string|max:10',
             'billing_prefecture' => 'nullable|string|max:50',
             'billing_city' => 'nullable|string|max:100',
             'billing_street' => 'nullable|string|max:200',
+            'billing_building' => 'nullable|string|max:200',
             'billing_difference' => 'nullable|numeric|between:-999999999.99,999999999.99',
         ]);
         
@@ -137,15 +129,11 @@ class CustomerController extends Controller
             'user_name' => 'nullable|string|max:100',
             'account_kana_name' => 'nullable|string|max:100',
             'account_holder_name' => 'nullable|string|max:100',
-            
-            // Payment information
             'payment_classification' => 'nullable|string|max:10',
             'payment_method' => 'nullable|string|max:255',
             'billing_amount' => 'nullable|numeric|between:0,999999999.99',
             'collection_request_amount' => 'nullable|numeric|between:0,999999999.99',
             'consumption_tax' => 'nullable|numeric|between:0,999999999.99',
-            
-            // Banking information
             'bank_number' => 'nullable|string|max:10',
             'bank_name' => 'nullable|string|max:255',
             'branch_number' => 'nullable|string|max:10',
@@ -153,15 +141,14 @@ class CustomerController extends Controller
             'deposit_type' => 'nullable|string|max:50',
             'account_number' => 'nullable|string|max:50',
             'customer_number' => 'required|string|max:50|unique:customers,customer_number,' . $customer->id,
-            
-            // Billing address
             'billing_postal_code' => 'nullable|string|max:10',
-            'billing_prefecture' => 'nullable|string|max:50',
+                        'billing_prefecture' => 'nullable|string|max:50',
             'billing_city' => 'nullable|string|max:100',
             'billing_street' => 'nullable|string|max:200',
+            'billing_building' => 'nullable|string|max:200',
             'billing_difference' => 'nullable|numeric|between:-999999999.99,999999999.99',
         ]);
-
+        
         try {
             $customer->update($validated);
             
@@ -709,27 +696,204 @@ class CustomerController extends Controller
         return null;
     }
 
-    /**
-     * Get bank name from fallback list when API is unavailable
-     */
+    
     private function getFallbackBankName($bankCode)
     {
         $fallbackBanks = config('banks.fallback_banks', []);
         return $fallbackBanks[$bankCode] ?? null;
     }
 
-    /**
-     * Get branch name from fallback list with bank validation
-     */
+    
     private function getFallbackBranchName($bankCode, $branchCode)
     {
         $fallbackBranches = config('banks.fallback_branches', []);
         
-        // Check if bank exists in our fallback data
         if (!isset($fallbackBranches[$bankCode])) {
             return null;
         }
         
         return $fallbackBranches[$bankCode][$branchCode] ?? null;
+    }
+
+  
+    public function showImportXlsx()
+    {
+     
+        return view('customers.import-xlsx');
+    }
+
+ 
+    public function importXlsx(Request $request)
+    {
+
+        $request->validate([
+            'xlsx_file' => 'required|file|mimes:xlsx,xls|max:10240', // 10MB max
+        ]);
+
+        try {
+            $file = $request->file('xlsx_file');
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getPathname());
+            $worksheet = $spreadsheet->getActiveSheet();
+            $rows = $worksheet->toArray();
+
+     
+            array_shift($rows);
+
+            $results = [
+                'total_processed' => 0,
+                'success_count' => 0,
+                'error_count' => 0,
+                'skipped_count' => 0,
+                'errors' => []
+            ];
+
+            \DB::beginTransaction();
+
+            foreach ($rows as $index => $row) {
+                $rowNumber = $index + 2; 
+                $results['total_processed']++;
+
+                Log::info('Processing row', [
+                    'row_number' => $rowNumber,
+                    'row_data' => $row
+                ]);
+
+                if (empty(array_filter($row))) {
+                    $results['skipped_count']++;
+                    continue;
+                }
+
+                try {
+                    $customerData = $this->parseCustomerRowFromXlsx($row);
+                    
+                    if (!empty($customerData['customer_number'])) {
+                        $customer = Customer::updateOrCreate(
+                            ['customer_number' => $customerData['customer_number']],
+                            $customerData
+                        );
+                        Log::info('Customer saved/updated', [
+                            'id' => $customer->id,
+                            'customer_number' => $customerData['customer_number'],
+                            'customer_code' => $customerData['customer_code']
+                        ]);
+                    } else {
+                        $customer = Customer::create($customerData);
+                        Log::info('New customer created', ['id' => $customer->id]);
+                    }
+
+                    $results['success_count']++;
+
+                } catch (\Exception $e) {
+                    $results['error_count']++;
+                    $results['errors'][] = [
+                        'row' => $rowNumber,
+                        'message' => $e->getMessage()
+                    ];
+                }
+            }
+
+            \DB::commit();
+            
+            Log::info('Import completed successfully', $results);
+            return response()->json($results);
+
+        } catch (\Exception $e) {
+           
+            \DB::rollback();
+            
+            Log::error('XLSX import failed', ['error' => $e->getMessage()]);
+            
+            return response()->json([
+                'error' => 'インポート処理中にエラーが発生しました: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+   
+    private function parseCustomerRowFromXlsx($row)
+    {
+        
+        $customerData = [
+            'customer_code' => trim($row[0] ?? ''),           // 顧客コード
+            'user_kana_name' => trim($row[1] ?? ''),          // 賃借者カナ氏名 
+            'user_name' => trim($row[2] ?? ''),               // 賃借者氏名
+            'account_kana_name' => trim($row[3] ?? ''),       // 口座カナ氏名
+            'account_holder_name' => trim($row[4] ?? ''),     // 口座人氏名
+            'payment_classification' => trim($row[5] ?? ''),  // 支払区分
+            'payment_method' => trim($row[6] ?? ''),          // 支払方法
+            'billing_amount' => $this->parseDecimal($row[7] ?? 0),           // 請求金額
+            'collection_request_amount' => $this->parseDecimal($row[8] ?? 0), // 徴収請求額
+            'consumption_tax' => $this->parseDecimal($row[9] ?? 0),          // 消費税
+            'bank_number' => $this->formatBankCode($row[10] ?? ''),          // 銀行番号
+            'bank_name' => trim($row[11] ?? ''),              // 銀行名
+            'branch_number' => $this->formatBranchCode($row[12] ?? ''),      // 支店番号
+            'branch_name' => trim($row[13] ?? ''),            // 支店名
+            'deposit_type' => trim($row[14] ?? ''),           // 預金種目
+            'account_number' => trim($row[15] ?? ''),         // 口座番号
+            'customer_number' => trim($row[16] ?? ''),        // 顧客番号
+            'billing_postal_code' => trim($row[17] ?? ''),    // 請求先郵便番号
+            'billing_prefecture' => trim($row[18] ?? ''),     // 請求先県名
+            'billing_city' => trim($row[19] ?? ''),           // 請求先市区町村
+            'billing_street' => trim($row[20] ?? ''),         // 請求先番地
+            'billing_building' => trim($row[21] ?? ''),       // 請求先建物
+        ];
+
+        if (empty($customerData['customer_code'])) {
+            throw new \Exception('顧客コードは必須です');
+        }
+
+        if (empty($customerData['user_name'])) {
+            throw new \Exception('賃借者氏名は必須です');
+        }
+
+        if (!empty($customerData['bank_number']) && empty($customerData['bank_name'])) {
+            $bankName = $this->getFallbackBankName($customerData['bank_number']);
+            if ($bankName) {
+                $customerData['bank_name'] = $bankName;
+            }
+        }
+
+      
+        if (!empty($customerData['bank_number']) && !empty($customerData['branch_number']) && empty($customerData['branch_name'])) {
+            $branchName = $this->getFallbackBranchName($customerData['bank_number'], $customerData['branch_number']);
+            if ($branchName) {
+                $customerData['branch_name'] = $branchName;
+            }
+        }
+
+        return $customerData;
+    }
+
+    /**
+     * Parse decimal value from Excel cell
+     */
+    private function parseDecimal($value)
+    {
+        if (empty($value)) {
+            return 0.00;
+        }
+        
+        // Remove any non-numeric characters except decimal point and minus sign
+        $cleaned = preg_replace('/[^\d.-]/', '', $value);
+        
+        return is_numeric($cleaned) ? (float)$cleaned : 0.00;
+    }
+
+    /**
+     * Format bank code to 4 digits
+     */
+    private function formatBankCode($code)
+    {
+        $cleaned = preg_replace('/\D/', '', $code); // Remove non-digits
+        return str_pad($cleaned, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Format branch code to 3 digits
+     */
+    private function formatBranchCode($code)
+    {
+        $cleaned = preg_replace('/\D/', '', $code); // Remove non-digits
+        return str_pad($cleaned, 3, '0', STR_PAD_LEFT);
     }
 }

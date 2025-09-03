@@ -233,13 +233,23 @@
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
-                        <div class="col-md-8">
+                        <div class="col-md-4">
                             <label for="billing_street" class="form-label">請求先番地</label>
                             <input type="text" class="form-control @error('billing_street') is-invalid @enderror" 
                                    id="billing_street" name="billing_street" 
                                    value="{{ old('billing_street', $customer->billing_street) }}" 
-                                   placeholder="例: 西新宿1-2-3 ABCビル4F">
+                                   placeholder="例: 西新宿1-2-3">
                             @error('billing_street')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-4">
+                            <label for="billing_building" class="form-label">請求先建物名</label>
+                            <input type="text" class="form-control @error('billing_building') is-invalid @enderror" 
+                                   id="billing_building" name="billing_building" 
+                                   value="{{ old('billing_building', $customer->billing_building) }}" 
+                                   placeholder="例: ABCビル4F">
+                            @error('billing_building')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>

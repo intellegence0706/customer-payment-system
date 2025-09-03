@@ -355,8 +355,12 @@
                                 <i class="fas fa-road text-warning"></i>
                             </div>
                             <div class="address-content">
-                                <label class="address-label">番地・建物名</label>
+                                <label class="address-label">番地</label>
                                 <p class="address-value street-value">{{ $customer->billing_street ?? '未設定' }}</p>
+                            </div>
+                            <div class="address-content">
+                                <label class="address-label">建物名</label>
+                                <p class="address-value building-value">{{ $customer->billing_building ?? '未設定' }}</p>
                             </div>
                         </div>
                         

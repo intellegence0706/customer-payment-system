@@ -233,6 +233,14 @@
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
+                        <div class="col-md-3">
+                            <label for="billing_building" class="form-label">建物名</label>
+                            <input type="text" class="form-control @error('billing_building') is-invalid @enderror" 
+                                   id="billing_building" name="billing_building" value="{{ old('billing_building') }}">
+                            @error('billing_building')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
                         <div class="col-md-2">
                             <label for="billing_difference" class="form-label">差額</label>
                             <input type="number" step="0.01" class="form-control @error('billing_difference') is-invalid @enderror" 

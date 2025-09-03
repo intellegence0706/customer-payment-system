@@ -34,6 +34,7 @@ class Customer extends Model
         'billing_prefecture',      // 請求先県名
         'billing_city',            // 請求先市区町村
         'billing_street',          // 請求先番地
+        'billing_building',        // 請求先建物
         'billing_difference',      // 請求先差額
     ];
 

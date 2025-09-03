@@ -8,6 +8,9 @@
             <a href="{{ route('customers.create') }}" class="btn btn-primary">
                 <i class="fas fa-plus me-1"></i> 顧客を追加
             </a>
+            <a href="{{ route('customers.import') }}" class="btn btn-success">
+                <i class="fas fa-file-excel me-1"></i> XLSX一括登録
+            </a>
             <div class="btn-group" role="group">
                 <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="fas fa-download me-1"></i> エクスポート
