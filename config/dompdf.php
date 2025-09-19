@@ -25,7 +25,7 @@ return [
     
         'fonts' => [
             'NotoSansJP' => [
-                'normal'      => resource_path('fonts/NotoSansJP.ttf')
+                'normal'      => storage_path('fonts/NotoSansJP.ttf')
             ],
 
         ],

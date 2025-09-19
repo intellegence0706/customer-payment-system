@@ -17,6 +17,15 @@
   .table-sticky thead th{position:sticky; top:0; z-index:2; background:#f8f9fa}
   .font-mono{font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
 
+  /* XLSX table */
+  .xlsx-card .table{font-size:.875rem}
+  .xlsx-table thead th{position:sticky; top:0; z-index:1; background:#f8f9fa; box-shadow:inset 0 -1px 0 #e9ecef}
+  .xlsx-table th,.xlsx-table td{white-space:nowrap}
+  .xlsx-table tbody tr:nth-child(odd){background:#fcfdff}
+  .scroll-x{overflow-x:auto}
+  .scroll-x::-webkit-scrollbar{height:8px}
+  .scroll-x::-webkit-scrollbar-thumb{background:#c7d2fe; border-radius:4px}
+
   /* Ribbon */
   .ribbon{position:absolute; top:14px; right:-8px; background:#fff; color:#000; padding:.35rem .75rem;
     border-radius:.5rem 0 0 .5rem; box-shadow:0 4px 16px rgba(0,0,0,.08)}
@@ -98,7 +107,7 @@
       <div class="me-xl-auto">
         <div class="sub small">ご請求金額（税込）</div>
         <div class="amount">¥{{ number_format((float)$__grand) }}</div>
-        <div class="sub small">{{ $payment->customer->name ?? 'N/A' }}（顧客番号: {{ $payment->customer->customer_number ?? 'N/A' }}）</div>
+        <div class="sub small">{{ $payment->customer->user_name ?? $payment->customer->name ?? 'N/A' }}（顧客番号: {{ $payment->customer->customer_number ?? 'N/A' }}）</div>
       </div>
       <div class="d-flex flex-wrap align-items-center gap-2">
         <span class="badge badge-soft rounded-pill"><i class="fas fa-calendar-day me-1"></i> 振替日: {{ $transferDateDisplay }}</span>
@@ -121,7 +130,7 @@
           <ul class="list-group list-group-flush list-faint">
             <li class="list-group-item d-flex justify-content-between align-items-start">
               <div class="label"><span class="icon me-2"><i class="fas fa-user"></i></span>顧客</div>
-              <div class="fw-semibold">{{ $payment->customer->name ?? 'N/A' }}</div>
+              <div class="fw-semibold">{{ $payment->customer->user_name ?? $payment->customer->name ?? 'N/A' }}</div>
             </li>
             <li class="list-group-item d-flex justify-content-between align-items-start">
               <div class="label"><span class="icon me-2"><i class="fas fa-map-marker-alt"></i></span>住所</div>
@@ -146,6 +155,68 @@
               <div>{{ $payment->created_at->format('Y/m/d H:i') }} ／ {{ $payment->updated_at->format('Y/m/d H:i') }}</div>
             </li>
           </ul>
+        </div>
+      </div>
+
+      <!-- 取込明細（XLSXの列をそのまま表示） -->
+      <div class="card shadow-soft mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">取込明細（XLSX）</h5>
+          <small class="text-muted">アップロード時の列構成に合わせて表示</small>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th class="text-nowrap">row</th>
+                  <th class="text-nowrap">対象年月</th>
+                  <!-- <th class="text-nowrap">顧客CD</th> -->
+                  <th class="text-nowrap">氏名カナ</th>
+                  <th class="text-nowrap">氏名</th>
+                  <th class="text-nowrap">枝番</th>
+                  <th class="text-nowrap">商品名</th>
+                  <th class="text-end text-nowrap">数量</th>
+                  <th class="text-end text-nowrap">単価</th>
+                  <th class="text-end text-nowrap">金額</th>
+                  <th class="text-end text-nowrap">消費税</th>
+                  <th class="text-nowrap">支払区分</th>
+                  <th class="text-nowrap">支払方法</th>
+                </tr>
+              </thead>
+              <tbody>
+                @php
+                  $dispYm = sprintf('%04d/%02d', (int)$payment->payment_year, (int)$payment->payment_month);
+                  $customerCode = $payment->customer->customer_number ?? $payment->customer->customer_code ?? '';
+                  $customerKana = $payment->customer->user_kana_name ?? '';
+                  $customerName = $payment->customer->user_name ?? $payment->customer->name ?? '';
+                @endphp
+                @forelse(($payment->items ?? collect()) as $it)
+                  @php
+                    $payMethod = '';
+                    if (!empty($it->notes) && preg_match('/支払方法:\s*(.+)/u', (string)$it->notes, $m)) { $payMethod = $m[1]; }
+                  @endphp
+                  <tr>
+                    <td>{{ $it->row_no ?? '' }}</td>
+                    <td>{{ $dispYm }}</td>
+                    <!-- <td>{{ $customerCode }}</td> -->
+                    <td>{{ $customerKana }}</td>
+                    <td>{{ $customerName }}</td>
+                    <td>{{ $it->row_no ?? '' }}</td>
+                    <td>{{ $it->product_name ?? '' }}</td>
+                    <td class="text-end">{{ number_format((float)($it->quantity ?? 0), 0) }}</td>
+                    <td class="text-end">{{ number_format((float)($it->unit_price ?? 0), 0) }}</td>
+                    <td class="text-end">{{ number_format((float)($it->amount ?? 0), 0) }}</td>
+                    <td class="text-end">{{ number_format((float)($it->tax_amount ?? 0), 0) }}</td>
+                    <td>{{ $it->category ?? '' }}</td>
+                    <td>{{ $payMethod }}</td>
+                  </tr>
+                @empty
+                  <tr><td colspan="13" class="text-center text-muted">明細がありません。</td></tr>
+                @endforelse
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

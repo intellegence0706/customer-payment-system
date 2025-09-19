@@ -34,7 +34,6 @@ class DashboardController extends Controller
     private function getStatisticsForRange(Carbon $dateFrom, Carbon $dateTo): array
     {
         $totalCustomers = Customer::count();
-
         $activeCustomersInRange = Customer::whereHas('payments', function ($query) use ($dateFrom, $dateTo) {
             $query->whereBetween('payment_date', [$dateFrom, $dateTo]);
         })->count();

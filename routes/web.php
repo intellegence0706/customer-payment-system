@@ -6,7 +6,6 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportController;
-use App\Http\Controllers\PostcardController;
 
 // Authentication routes
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -42,6 +41,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('payments/export-pdf', [PaymentController::class, 'exportPostcardPdf'])->name('payments.export-pdf');
     Route::get('/postcards/print/csv', [\App\Http\Controllers\PaymentController::class, 'exportPostcardPrintCsv'])->name('postcards.print.csv');
     Route::get('/postcards/print/xlsx', [\App\Http\Controllers\PaymentController::class, 'exportPostcardPrintXlsx'])->name('postcards.print.xlsx');
+
+// Detailed XLSX Import UI and APIs
+Route::get('/payments/detailed-import', [\App\Http\Controllers\PaymentController::class, 'showDetailedImportForm'])->name('payments.detailed.import');
+Route::post('/payments/detailed-import/preview', [\App\Http\Controllers\PaymentController::class, 'previewDetailedDepositXlsx'])->name('payments.detailed.preview');
+Route::post('/payments/detailed-import/commit', [\App\Http\Controllers\PaymentController::class, 'commitDetailedDepositXlsx'])->name('payments.detailed.commit');
+Route::delete('/payments/detailed-import/batch/{batchId}', [\App\Http\Controllers\PaymentController::class, 'deleteImportBatch'])->name('payments.detailed.delete');
     Route::get('/postcards/print/pdf', [\App\Http\Controllers\PaymentController::class, 'exportPostcardPrintPdf'])->name('postcards.print.pdf');
     Route::resource('payments', PaymentController::class);
 

@@ -59,6 +59,280 @@ class PaymentController extends Controller
         }
     }
 
+    /**
+     * Determine whether the header row corresponds to the detailed deposit XLSX format.
+     */
+    private function looksLikeDetailedDepositHeader($header): bool
+    {
+        if (!is_array($header)) {
+            return false;
+        }
+        $joined = implode('|', array_map(function ($h) { return trim((string)$h); }, $header));
+        $requiredKeywords = ['対象年月', '顧客', '商品名'];
+        foreach ($requiredKeywords as $kw) {
+            if (mb_strpos($joined, $kw) === false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Import the detailed deposit XLSX format shown in the screenshot.
+     */
+    private function importDetailedDepositXlsx(array $rows, array $header): array
+    {
+        $errors = [];
+        $groups = [];
+
+        // Map header titles to indices
+        $index = [];
+        foreach ($header as $i => $h) {
+            $key = trim((string)$h);
+            $index[$key] = $i;
+        }
+
+        $ymCol = $this->findHeaderIndex($index, ['対象年月', '年月', '対象月']);
+        $customerCodeCol = $this->findHeaderIndex($index, ['顧客CD', '顧客番号', '顧客No']);
+        $customerNameCol = $this->findHeaderIndex($index, ['氏名', '利用者氏名']);
+        $productNameCol = $this->findHeaderIndex($index, ['商品名']);
+        $quantityCol = $this->findHeaderIndex($index, ['数量']);
+        $unitPriceCol = $this->findHeaderIndex($index, ['単価']);
+        $amountCol = $this->findHeaderIndex($index, ['金額']);
+        $taxCol = $this->findHeaderIndex($index, ['消費税', '税']);
+        $payMethodCol = $this->findHeaderIndex($index, ['支払方法']);
+
+        if ($ymCol === null || ($customerNameCol === null && $customerCodeCol === null) || $productNameCol === null || $amountCol === null) {
+            $errors[] = 'ヘッダーの必須列が見つかりません (対象年月, 氏名/顧客CD, 商品名, 金額)。';
+            return [0, $errors];
+        }
+
+        foreach ($rows as $rowNo => $row) {
+            if (empty(array_filter($row, function ($v) { return (string)trim((string)$v) !== ''; }))) {
+                continue;
+            }
+            $customerCode = trim((string)($row[$customerCodeCol] ?? ''));
+            $customerName = trim((string)($row[$customerNameCol] ?? ''));
+            $targetYm = trim((string)($row[$ymCol] ?? ''));
+            if (($customerName === '' && $customerCode === '') || $targetYm === '') {
+                $errors[] = ($rowNo + 2) . '行目: 氏名/顧客CDまたは対象年月が空です。';
+                continue;
+            }
+            $groupKey = ($customerName !== '' ? $customerName : $customerCode) . '|' . $targetYm;
+            if (!isset($groups[$groupKey])) {
+                $groups[$groupKey] = [
+                    'customer_code' => $customerCode,
+                    'customer_name' => $customerName,
+                    'target_ym' => $targetYm,
+                    'rows' => [],
+                ];
+            }
+
+            $quantity = $this->parseDecimal($row[$quantityCol] ?? null);
+            $unitPrice = $this->parseDecimal($row[$unitPriceCol] ?? null);
+            $amount = $this->parseDecimal($row[$amountCol] ?? null);
+            $tax = $this->parseDecimal($row[$taxCol] ?? null);
+            $groups[$groupKey]['rows'][] = [
+                'row_no' => $rowNo + 2,
+                'product_name' => trim((string)($row[$productNameCol] ?? '')),
+                'quantity' => $quantity,
+                'unit_price' => $unitPrice,
+                'amount' => $amount,
+                'tax_amount' => $tax,
+                'pay_method' => ($payMethodCol !== null) ? trim((string)($row[$payMethodCol] ?? '')) : null,
+            ];
+        }
+
+        $imported = 0;
+
+        \DB::beginTransaction();
+        try {
+            foreach ($groups as $group) {
+                $customer = null;
+                if (!empty($group['customer_name'])) {
+                    $customer = $this->findCustomerByName($group['customer_name']);
+                }
+                if (!$customer && !empty($group['customer_code'])) {
+                    $customer = Customer::where('customer_number', $group['customer_code'])
+                        ->orWhere('customer_code', $group['customer_code'])
+                        ->first();
+                }
+                if (!$customer) {
+                    $label = !empty($group['customer_name']) ? $group['customer_name'] : $group['customer_code'];
+                    $errors[] = "顧客 '{$label}' が見つかりません。";
+                    continue;
+                }
+
+                [$year, $month] = $this->parseYearMonth($group['target_ym']);
+                if (!$year || !$month) {
+                    $errors[] = "顧客 '{$customer->name}' の対象年月 '{$group['target_ym']}' を解析できません。";
+                    continue;
+                }
+
+                $subtotal = 0.0; $taxTotal = 0.0;
+                foreach ($group['rows'] as $r) {
+                    $subtotal += (float)($r['amount'] ?? 0);
+                    $taxTotal += (float)($r['tax_amount'] ?? 0);
+                }
+                $grandTotal = $subtotal + $taxTotal;
+
+                $exists = Payment::where('customer_id', $customer->id)
+                    ->where('payment_month', $month)
+                    ->where('payment_year', $year)
+                    ->first();
+                if ($exists) {
+                    $errors[] = "顧客'{$customer->name}'の{$year}年{$month}月の入金が既に存在します。";
+                    continue;
+                }
+
+                $payment = Payment::create([
+                    'customer_id' => $customer->id,
+                    'payment_month' => $month,
+                    'payment_year' => $year,
+                    'amount' => $grandTotal,
+                    'subtotal_amount' => $subtotal ?: null,
+                    'tax_total' => $taxTotal ?: null,
+                    'grand_total' => $grandTotal ?: null,
+                    'payment_date' => now(),
+                    'status' => 'completed',
+                    'notes' => '詳細XLSXから取込',
+                ]);
+
+                foreach ($group['rows'] as $idx => $r) {
+                    PaymentItem::create([
+                        'payment_id' => $payment->id,
+                        'row_no' => $r['row_no'] ?? ($idx + 1),
+                        'item_date' => null,
+                        'product_code' => null,
+                        'product_name' => $r['product_name'] ?? '',
+                        'unit_price' => $r['unit_price'] ?? null,
+                        'quantity' => $r['quantity'] ?? 1,
+                        'amount' => $r['amount'] ?? 0,
+                        'tax_rate' => null,
+                        'tax_amount' => $r['tax_amount'] ?? 0,
+                        'category' => null,
+                        'notes' => $r['pay_method'] ? ('支払方法: ' . $r['pay_method']) : null,
+                    ]);
+                }
+
+                $imported++;
+            }
+
+            \DB::commit();
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            $errors[] = '詳細XLSX取込でエラー: ' . $e->getMessage();
+        }
+
+        return [$imported, $errors];
+    }
+
+    private function findHeaderIndex(array $headerIndex, array $candidates): ?int
+    {
+        foreach ($candidates as $title) {
+            if (array_key_exists($title, $headerIndex)) {
+                return $headerIndex[$title];
+            }
+        }
+        // fallback: loose contains match
+        foreach ($headerIndex as $label => $idx) {
+            foreach ($candidates as $title) {
+                if ($label !== '' && mb_strpos($label, $title) !== false) {
+                    return $idx;
+                }
+            }
+        }
+        return null;
+    }
+
+    private function findCustomerByName(string $name)
+    {
+        $trimmed = trim($name);
+        if ($trimmed === '') {
+            return null;
+        }
+        // Try exact match on user_name
+        $customer = Customer::where('user_name', $trimmed)->first();
+        if ($customer) {
+            return $customer;
+        }
+        // Try contains match as fallback
+        return Customer::where('user_name', 'like', '%' . $trimmed . '%')->first();
+    }
+
+    private function parseDecimal($value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $str = (string)$value;
+        // Normalize Excel-style numbers: remove yen marks, commas, full-width digits, stray backslashes
+        $str = str_replace(['\\', '¥', '￥', ',', '，', ' '], '', $str);
+        $str = preg_replace('/\s+/u', '', $str);
+        // Convert full-width digits to half-width
+        $str = mb_convert_kana($str, 'n');
+        // Keep only digits, dot, minus
+        $clean = preg_replace('/[^0-9.\-]/u', '', $str);
+        if ($clean === '' || !is_numeric($clean)) {
+            return null;
+        }
+        return (float)$clean;
+    }
+
+    private function formatCurrency(float $value): string
+    {
+        return number_format($value, (fmod($value, 1.0) === 0.0 ? 0 : 2));
+    }
+
+    private function parseYearMonth(string $text): array
+    {
+        $t = trim((string)$text);
+        if ($t === '') { return [null, null]; }
+
+        // Normalize: convert full-width to half-width, strip spaces
+        $norm = mb_convert_kana($t, 'nask');
+        $norm = preg_replace('/\s+/u', '', $norm);
+
+        // Exact formats
+        if (preg_match('/^(\d{4})[\/-](\d{1,2})$/', $norm, $m)) {
+            return [(int)$m[1], (int)$m[2]];
+        }
+        if (preg_match('/^(\d{4})年\s*(\d{1,2})月/u', $norm, $m)) {
+            return [(int)$m[1], (int)$m[2]];
+        }
+
+        // Find the last plausible YYYY/MM inside noisy text
+        if (preg_match_all('/(\d{4})[\/-](\d{1,2})/', $norm, $matches, PREG_SET_ORDER)) {
+            $m = end($matches);
+            $mm = (int)$m[2];
+            if ($mm >= 1 && $mm <= 12) { return [(int)$m[1], $mm]; }
+        }
+        // Compact yyyymm appearing inside text
+        if (preg_match_all('/(\d{4})(\d{2})/', $norm, $matches, PREG_SET_ORDER)) {
+            foreach (array_reverse($matches) as $m) {
+                $yy = (int)$m[1]; $mm = (int)$m[2];
+                if ($mm >= 1 && $mm <= 12) { return [$yy, $mm]; }
+            }
+        }
+        // Excel serial date
+        if (preg_match('/^\d+$/', $norm)) {
+            $serial = (int)$norm;
+            if ($serial >= 59 && $serial <= 60000) {
+                try {
+                    $d = \Carbon\Carbon::create(1899, 12, 30)->addDays($serial);
+                    return [$d->year, $d->month];
+                } catch (\Exception $e) {}
+            }
+        }
+
+        // Fallback to Carbon parse
+        try {
+            $dt = \Carbon\Carbon::parse($norm);
+            return [$dt->year, $dt->month];
+        } catch (\Exception $e) {
+            return [null, null];
+        }
+    }
     private function buildPostcardData(int $currentMonth, int $currentYear): array
     {
         $previousMonth = $currentMonth == 1 ? 12 : $currentMonth - 1;
@@ -152,9 +426,7 @@ class PaymentController extends Controller
         return $rows;
     }
 
-    /**
-     * Build richer data for print-PDF including line items and transfer date.
-     */
+    
     private function buildPostcardPrintPdfData(int $month, int $year): array
     {
         $payments = Payment::with(['customer', 'items' => function($q){ $q->orderBy('item_date'); }])
@@ -170,7 +442,7 @@ class PaymentController extends Controller
             foreach ($payment->items as $it) {
                 $amount = (float)($it->amount ?? (($it->unit_price ?? 0) * ($it->quantity ?? 1)));
                 $label = $it->product_name ?? '';
-                // Heuristic: capture transfer fee if product name looks like fee or marked as other charges
+            
                 if (stripos((string)$label, 'fee') !== false || ($it->category ?? '') === 'other_charges') {
                     $transferFee += $amount;
                 }
@@ -242,6 +514,11 @@ class PaymentController extends Controller
             'items.*.tax_amount' => 'nullable|numeric',
             'items.*.category' => 'nullable|string|max:50',
             'items.*.notes' => 'nullable|string',
+            'other_payments' => 'nullable|array',
+            'other_payments.*.row_no' => 'nullable|integer|min:1',
+            'other_payments.*.item_date' => 'nullable|date',
+            'other_payments.*.amount' => 'required_with:other_payments|numeric',
+            'other_payments.*.notes' => 'nullable|string',
         ]);
 
         $payment = Payment::create($validated);
@@ -280,6 +557,30 @@ class PaymentController extends Controller
                 if (($item['category'] ?? '') === 'other_charges') {
                     $otherFees += $amount + $calculatedTax;
                 }
+            }
+        }
+
+        // Save その他入金 rows as PaymentItem with category 'other_payment'
+        if ($request->filled('other_payments')) {
+            foreach ($request->input('other_payments') as $index => $op) {
+                if (!isset($op['amount']) || $op['amount'] === '') {
+                    continue;
+                }
+                $amount = (float) $op['amount'];
+                PaymentItem::create([
+                    'payment_id' => $payment->id,
+                    'row_no' => $op['row_no'] ?? (1000 + $index + 1),
+                    'item_date' => $op['item_date'] ?? null,
+                    'product_code' => null,
+                    'product_name' => 'その他入金',
+                    'unit_price' => $amount,
+                    'quantity' => 1,
+                    'amount' => $amount,
+                    'tax_rate' => 0,
+                    'tax_amount' => 0,
+                    'category' => 'other_payment',
+                    'notes' => $op['notes'] ?? null,
+                ]);
             }
         }
 
@@ -349,6 +650,11 @@ class PaymentController extends Controller
             'items.*.tax_amount' => 'nullable|numeric',
             'items.*.category' => 'nullable|string|max:50',
             'items.*.notes' => 'nullable|string',
+            'other_payments' => 'nullable|array',
+            'other_payments.*.row_no' => 'nullable|integer|min:1',
+            'other_payments.*.item_date' => 'nullable|date',
+            'other_payments.*.amount' => 'required_with:other_payments|numeric',
+            'other_payments.*.notes' => 'nullable|string',
         ]);
 
         $payment->update($validated);
@@ -388,6 +694,29 @@ class PaymentController extends Controller
                 if (($item['category'] ?? '') === 'other_charges') {
                     $otherFees += $amount + $calculatedTax;
                 }
+            }
+        }
+
+        // Re-create その他入金 rows
+        if ($request->filled('other_payments')) {
+            foreach ($request->input('other_payments') as $index => $op) {
+                if (!isset($op['amount']) || $op['amount'] === '') {
+                    continue;
+                }
+                $amount = (float) $op['amount'];
+                $payment->items()->create([
+                    'row_no' => $op['row_no'] ?? (1000 + $index + 1),
+                    'item_date' => $op['item_date'] ?? null,
+                    'product_code' => null,
+                    'product_name' => 'その他入金',
+                    'unit_price' => $amount,
+                    'quantity' => 1,
+                    'amount' => $amount,
+                    'tax_rate' => 0,
+                    'tax_amount' => 0,
+                    'category' => 'other_payment',
+                    'notes' => $op['notes'] ?? null,
+                ]);
             }
         }
 
@@ -456,11 +785,32 @@ class PaymentController extends Controller
                     throw new \Exception('XLSXファイルが空であるか、データが不足しています。');
                 }
                 
-                $header = array_shift($rows); 
+                $header = array_shift($rows);
+
+                // Detailed deposit layout? Import via detailed path
+                if ($this->looksLikeDetailedDepositHeader($header)) {
+                    [$imported, $errors] = $this->importDetailedDepositXlsx($rows, $header);
+
+                    Storage::delete($path);
+
+                    $message = "{$imported}件の入金データを正常に取り込みました。";
+                    if (!empty($errors)) {
+                        $message .= " エラー: " . implode('; ', array_slice($errors, 0, 10));
+                        if (count($errors) > 10) {
+                            $message .= " (他" . (count($errors) - 10) . "件のエラー)";
+                        }
+                    }
+
+                    $alertType = !empty($errors) ? 'warning' : 'success';
+                    return redirect()->route('payments.index')
+                        ->with($alertType, $message);
+                }
+
+                // Simple format fallback: 顧客番号, 金額, 入金日, 受付番号(任意)
                 if (!$header || count($header) < 3) {
                     throw new \Exception('XLSXフォーマットが無効です。最低3列必要です：顧客番号、金額、入金日。');
                 }
-                
+
                 $data = $rows;
             } else {
             
@@ -831,6 +1181,244 @@ class PaymentController extends Controller
         return view('payments.xlsx-viewer');
     }
 
+    public function showDetailedImportForm()
+    {
+        return view('payments.detailed-import');
+    }
+
+    // Preview detailed XLSX (re-add lightweight version here for UI)
+    public function previewDetailedDepositXlsx(Request $request)
+    {
+        $request->validate([
+            'xlsx_file' => 'required|file|mimes:xlsx|max:5120',
+        ]);
+
+        $file = $request->file('xlsx_file');
+        $path = $file->store('temp');
+        try {
+            $spreadsheet = IOFactory::load(storage_path('app/' . $path));
+            $worksheet = $spreadsheet->getActiveSheet();
+            $rows = $worksheet->toArray();
+            if (empty($rows) || count($rows) < 2) {
+                throw new \Exception('XLSXファイルが空です。');
+            }
+            $header = array_shift($rows);
+            if (!$this->looksLikeDetailedHeader($header)) {
+                throw new \Exception('詳細フォーマットを検出できません。見本の列名をご確認ください。');
+            }
+
+            $index = [];
+            foreach ($header as $i => $h) { $index[trim((string)$h)] = $i; }
+            $ym = $this->findHeaderIndex($index, ['対象年月','年月','対象月']);
+            $code = $this->findHeaderIndex($index, ['顧客CD','顧客番号']);
+            $nameKana = $this->findHeaderIndex($index, ['氏名カナ','利用者カナ氏名']);
+            $name = $this->findHeaderIndex($index, ['氏名','利用者氏名']);
+            $edaban = $this->findHeaderIndex($index, ['枝番']);
+            $product = $this->findHeaderIndex($index, ['商品名']);
+            $qty = $this->findHeaderIndex($index, ['数量']);
+            $unit = $this->findHeaderIndex($index, ['単価']);
+            $amount = $this->findHeaderIndex($index, ['金額']);
+            $tax = $this->findHeaderIndex($index, ['消費税','税']);
+            $payClass = $this->findHeaderIndex($index, ['支払区分']);
+            $method = $this->findHeaderIndex($index, ['支払方法']);
+
+            $data = [];
+            foreach ($rows as $i => $r) {
+                if (!empty(array_filter($r))) {
+                    // Normalize display values to avoid locale/backslash issues
+                    [$yy, $mm] = [null, null];
+                    if ($ym !== null) {
+                        [$yy, $mm] = $this->parseYearMonth((string)($r[$ym] ?? ''));
+                    }
+                    $dispYm = ($yy && $mm) ? sprintf('%04d/%02d', $yy, $mm) : (string)($r[$ym] ?? '');
+
+                    $qtyVal = $this->parseDecimal($qty !== null ? ($r[$qty] ?? null) : null);
+                    $unitVal = $this->parseDecimal($unit !== null ? ($r[$unit] ?? null) : null);
+                    $amountVal = $this->parseDecimal($amount !== null ? ($r[$amount] ?? null) : null);
+                    $taxVal = $this->parseDecimal($tax !== null ? ($r[$tax] ?? null) : null);
+
+                    $data[] = [
+                        'row' => $i + 2,
+                        '対象年月' => $dispYm,
+                        '顧客CD' => $code !== null ? ($r[$code] ?? '') : '',
+                        '氏名カナ' => $nameKana !== null ? ($r[$nameKana] ?? '') : '',
+                        '氏名' => $name !== null ? ($r[$name] ?? '') : '',
+                        '枝番' => $edaban !== null ? ($r[$edaban] ?? '') : '',
+                        '商品名' => $r[$product] ?? '',
+                        '数量' => $qtyVal !== null ? (int)$qtyVal : (($qty !== null ? ($r[$qty] ?? '') : '')),
+                        '単価' => $unitVal !== null ? $this->formatCurrency($unitVal) : (($unit !== null ? ($r[$unit] ?? '') : '')),
+                        '金額' => $amountVal !== null ? $this->formatCurrency($amountVal) : ($r[$amount] ?? ''),
+                        '消費税' => $taxVal !== null ? $this->formatCurrency($taxVal) : (($tax !== null ? ($r[$tax] ?? '') : '')),
+                        '支払区分' => $payClass !== null ? ($r[$payClass] ?? '') : '',
+                        '支払方法' => $method !== null ? ($r[$method] ?? '') : '',
+                    ];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'header' => $header,
+                'rows' => $data,
+                'filename' => $file->getClientOriginalName(),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 400);
+        } finally {
+            if (isset($path) && Storage::exists($path)) { Storage::delete($path); }
+        }
+    }
+
+        // Commit import with batch id (from preview rows)
+    public function commitDetailedDepositXlsx(Request $request)
+    {
+        $request->validate([
+            'rows' => 'required|array|min:1',
+        ]);
+
+        $rows = $request->input('rows');
+        $batchId = 'B' . date('YmdHis') . '-' . substr(sha1(json_encode($rows) . microtime(true)), 0, 8);
+        $errors = [];
+        $imported = 0;
+
+        // Group rows by (customer, year, month) and upsert
+        $groups = [];
+        foreach ($rows as $row) {
+            $name = trim((string)($row['氏名'] ?? ''));
+            $code = trim((string)($row['顧客CD'] ?? ''));
+            $customer = null;
+            if ($name !== '') {
+                $customer = Customer::where('user_name', $name)->first();
+                if (!$customer) { $customer = Customer::where('user_name', 'like', '%' . $name . '%')->first(); }
+            }
+            if (!$customer && $code !== '') {
+                $customer = Customer::where('customer_number', $code)->orWhere('customer_code', $code)->first();
+            }
+            if (!$customer) {
+                $errors[] = ($row['row'] ?? '?') . "行目: 顧客 '" . ($name ?: $code) . "' が見つかりません。";
+                continue;
+            }
+
+            [$year, $month] = $this->parseYearMonth((string)($row['対象年月'] ?? ''));
+            if (!$year || !$month) {
+                $errors[] = ($row['row'] ?? '?') . '行目: 対象年月を解析できません。';
+                continue;
+            }
+
+            $key = $customer->id . '|' . $year . '|' . $month;
+            if (!isset($groups[$key])) {
+                $groups[$key] = [
+                    'customer' => $customer,
+                    'year' => $year,
+                    'month' => $month,
+                    'subtotal' => 0.0,
+                    'tax' => 0.0,
+                    'items' => [],
+                ];
+            }
+            $groups[$key]['subtotal'] += (float)($this->parseDecimal($row['金額'] ?? null) ?? 0);
+            $groups[$key]['tax'] += (float)($this->parseDecimal($row['消費税'] ?? null) ?? 0);
+            if (!empty($row['商品名'])) {
+                $groups[$key]['items'][] = [
+                    'row_no' => (int)($row['枝番'] ?? ($row['row'] ?? 0)),
+                    'product_name' => (string)$row['商品名'],
+                    'unit_price' => $this->parseDecimal($row['単価'] ?? null),
+                    'quantity' => $this->parseDecimal($row['数量'] ?? null) ?? 1,
+                    'amount' => $this->parseDecimal($row['金額'] ?? null) ?? 0,
+                    'tax_amount' => $this->parseDecimal($row['消費税'] ?? null) ?? 0,
+                    'category' => !empty($row['支払区分']) ? (string)$row['支払区分'] : null,
+                    'notes' => trim((!empty($row['支払方法']) ? ('支払方法: ' . $row['支払方法']) : '')) ?: null,
+                ];
+            }
+        }
+
+        \DB::beginTransaction();
+        try {
+            foreach ($groups as $group) {
+                $customer = $group['customer'];
+                $year = $group['year'];
+                $month = $group['month'];
+                $subtotal = (float)$group['subtotal'];
+                $tax = (float)$group['tax'];
+                $grand = $subtotal + $tax;
+
+                // Find existing payment or create a new one
+                $payment = Payment::where('customer_id', $customer->id)
+                    ->where('payment_year', $year)
+                    ->where('payment_month', $month)
+                    ->first();
+
+                if ($payment) {
+                    $payment->update([
+                        'amount' => (float)$payment->amount + $grand,
+                        'subtotal_amount' => (float)($payment->subtotal_amount ?? 0) + $subtotal,
+                        'tax_total' => (float)($payment->tax_total ?? 0) + $tax,
+                        'grand_total' => (float)($payment->grand_total ?? 0) + $grand,
+                    ]);
+                } else {
+                    $payment = Payment::create([
+                        'customer_id' => $customer->id,
+                        'payment_month' => $month,
+                        'payment_year' => $year,
+                        'amount' => $grand,
+                        'subtotal_amount' => $subtotal ?: null,
+                        'tax_total' => $tax ?: null,
+                        'grand_total' => $grand ?: null,
+                        'payment_date' => now(),
+                        'status' => 'completed',
+                        'notes' => '詳細XLSXから取込',
+                        'import_batch_id' => $batchId,
+                    ]);
+                }
+
+                foreach ($group['items'] as $it) {
+                    PaymentItem::create([
+                        'payment_id' => $payment->id,
+                        'row_no' => $it['row_no'],
+                        'item_date' => null,
+                        'product_code' => null,
+                        'product_name' => $it['product_name'],
+                        'unit_price' => $it['unit_price'],
+                        'quantity' => $it['quantity'],
+                        'amount' => $it['amount'],
+                        'tax_rate' => null,
+                        'tax_amount' => $it['tax_amount'],
+                        'category' => $it['category'],
+                        'notes' => $it['notes'],
+                    ]);
+                }
+
+                $imported++;
+            }
+            \DB::commit();
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            $errors[] = 'エラー: ' . $e->getMessage();
+        }
+
+        return response()->json([
+            'success' => empty($errors),
+            'imported' => $imported,
+            'batch_id' => $batchId,
+            'errors' => $errors,
+        ], empty($errors) ? 200 : 400);
+    }
+
+    public function deleteImportBatch(string $batchId)
+    {
+        $count = Payment::where('import_batch_id', $batchId)->count();
+        Payment::where('import_batch_id', $batchId)->delete();
+        return redirect()->back()->with('success', "バッチ {$batchId} の入金を {$count} 件削除しました。");
+    }
+
+    private function looksLikeDetailedHeader($header): bool
+    {
+        if (!is_array($header)) { return false; }
+        $joined = implode('|', array_map(fn($h) => trim((string)$h), $header));
+        foreach (['対象年月','顧客','商品名'] as $kw) {
+            if (mb_strpos($joined, $kw) === false) { return false; }
+        }
+        return true;
+    }
     public function previewXlsxData(Request $request)
     {
         $request->validate([
@@ -922,7 +1510,6 @@ class PaymentController extends Controller
                     continue;
                 }
                 
-                // Validate amount
                 $rawAmount = isset($rowData[1]) ? preg_replace('/[^0-9.\-]/', '', (string) $rowData[1]) : '';
                 if ($rawAmount === '' || !is_numeric($rawAmount)) {
                     $errors[] = "{$displayRow}行目: 有効な金額が必要です。";
@@ -935,14 +1522,12 @@ class PaymentController extends Controller
                     continue;
                 }
                 
-                // Find customer
                 $customer = Customer::where('customer_number', trim($rowData[0]))->first();
                 if (!$customer) {
                     $errors[] = "{$displayRow}行目: 顧客番号'{$rowData[0]}'が見つかりません。";
                     continue;
                 }
                 
-                // Parse payment date
                 $paymentDate = null;
                 if (!empty($rowData[2])) {
                     try {
@@ -954,7 +1539,7 @@ class PaymentController extends Controller
                     $paymentDate = now();
                 }
                 
-                // Check for existing payment
+            
                 $existingPayment = Payment::where('customer_id', $customer->id)
                     ->where('payment_month', $request->payment_month)
                     ->where('payment_year', $request->payment_year)
@@ -965,7 +1550,6 @@ class PaymentController extends Controller
                     continue;
                 }
                 
-                // Create payment record
                 Payment::create([
                     'customer_id' => $customer->id,
                     'payment_month' => $request->payment_month,

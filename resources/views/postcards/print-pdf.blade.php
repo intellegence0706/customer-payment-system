@@ -56,15 +56,7 @@
             font-family: 'NotoSansJP', 'DejaVu Sans', sans-serif;
         }
         body { font-variant-numeric: tabular-nums; }
-        .postcard {
-            width: 148mm;
-            height: 105mm;
-            border: 1px solid #000;
-            margin: 10mm;
-            padding: 10mm;
-            page-break-after: always;
-            box-sizing: border-box;
-        }
+        .postcard { width: 148mm; height: 105mm; padding: 6mm; page-break-after: always; box-sizing: border-box; }
 
         .postcard:last-child {
             page-break-after: avoid;
@@ -104,62 +96,79 @@
 
 <body>
     @foreach ($data as $row)
-        <div class="postcard">
-            <div class="header">
-                <h3>{{wareki_ym((int)$year,(int)$month) }}御請求書</h3>
+      <div class="postcard">
+        <div style="display:flex; gap:6mm; height:100%; box-sizing:border-box;">
+          <!-- Left side: address face -->
+          <div style="flex:1; display:flex; flex-direction:column;">
+            <!-- Front: address face -->
+            <div class="block" style="margin-bottom:3mm; min-height:40mm; border:1px solid #d1d5db;">
+              <div style="font-size:11px; color:#6b7280;">郵便 はがき</div>
+              <div style="margin-top:3mm;">〒{{ $row['postal_code'] ?? '' }}</div>
+              <div style="white-space:pre-line; line-height:1.6;">{{ $row['address'] ?? '' }}</div>
+              <div style="margin-top:3mm; font-weight:700; font-size:16px; letter-spacing:2px;">{{ $row['recipient_name'] }} 様</div>
             </div>
-            <div class="customer-info">
-                <strong>{{ $row['recipient_name'] }}</strong>
-                @if (!empty($row['customer_number']))<span> / No. {{ $row['customer_number'] }}</span>@endif
+            <!-- Company block -->
+            <div class="block" style="margin-top:auto;">
+              <div style="font-weight:700;">{{ $row['company_name'] ?? config('app.name') }}</div>
+              @if (!empty($row['company_postal_code']) || !empty($row['company_address']))
+                <div style="margin-top:1mm;">〒{{ $row['company_postal_code'] ?? '' }} {{ $row['company_address'] ?? '' }}</div>
+              @endif
             </div>
-            <div>
-                <p>下記のとおり御請求いたします。</p>
-                <div>
-                    合計金額（税込）
-                    <span class="amount">¥{{ number_format((float)($row['amount_total'] ?? 0)) }}</span>
-                </div>
+          </div>
+          <!-- Right side: back content; split vertically into two halves -->
+          <div style="flex:1; display:flex; flex-direction:column;">
+            <div class="header" style="text-align:left; margin-bottom:2mm;">
+              <div class="brand">{{ '令和' . sprintf('%02d', ((int)$year - 2018)) . '年 ' . (int)$month . '月分　御請求書' }}</div>
             </div>
-            <div style="border:1px solid #000; border-radius:3px; padding:6px; margin:10px 0; display:flex; justify-content:space-between; align-items:center;">
-                <div style="font-size:10px; color:#666;">※振替日</div>
-                <div style="font-weight:bold;">{{ wareki_ymd($row['transfer_date'] ?? '') }}</div>
+            <!-- Current month (upper half) -->
+            <div class="block" style="margin-bottom:3mm;">
+              <div style="font-size:11px; color:#6b7280;">合計金額（税込）</div>
+              <div class="amount">¥{{ number_format((float)($row['amount_total'] ?? 0)) }}</div>
             </div>
-            <div class="payment-info">
-                <strong>明細</strong>
-                <table style="width:100%; border-collapse:collapse; font-variant-numeric: tabular-nums;">
-                    <tbody>
-                        @foreach (($row['items'] ?? []) as $it)
-                            <tr>
-                                <td style="width:20%; border-bottom:1px solid #ddd;">{{ $it['date'] }}</td>
-                                <td style="border-bottom:1px solid #ddd;">{{ $it['name'] }}</td>
-                                <td style="width:25%; text-align:right; border-bottom:1px solid #ddd;">¥{{ number_format((float)$it['amount']) }}</td>
-                            </tr>
-                        @endforeach
-                        @if (($row['transfer_fee'] ?? 0) > 0)
-                            <tr>
-                                <td style="border-bottom:1px solid #ddd;">&nbsp;</td>
-                                <td style="border-bottom:1px solid #ddd;">振替手数料</td>
-                                <td style="text-align:right; border-bottom:1px solid #ddd;">¥{{ number_format((float)$row['transfer_fee']) }}</td>
-                            </tr>
-                        @endif
-                        @php
-                            $lineSum = 0.0;
-                            foreach (($row['items'] ?? []) as $it) { $lineSum += (float)($it['amount'] ?? 0); }
-                            $lineSum += (float)($row['transfer_fee'] ?? 0);
-                        @endphp
-                        @if ($lineSum > 0)
-                            <tr>
-                                <td style="border-top:1px solid #000;">&nbsp;</td>
-                                <td style="border-top:1px solid #000; text-align:right; font-weight:bold;">合計</td>
-                                <td style="border-top:1px solid #000; text-align:right; font-weight:bold;">¥{{ number_format($lineSum) }}</td>
-                            </tr>
-                        @endif
-                    </tbody>
-                </table>
+            <div class="block" style="margin-bottom:3mm; display:flex; justify-content:space-between;">
+              <div style="font-size:11px; color:#6b7280;">※振替日</div>
+              <div>{{ wareki_ymd($row['transfer_date'] ?? '') }}</div>
             </div>
-            <div class="footer">
-                <p>{{ now()->format('Y-m-d') }}</p>
+            <div class="block" style="flex:1;">
+              <div style="font-weight:700; margin-bottom:2mm;">当月明細</div>
+              <table style="width:100%; border-collapse:collapse; font-variant-numeric: tabular-nums;">
+                <tbody>
+                  @foreach (($row['items'] ?? []) as $it)
+                  <tr>
+                    <td style="width:22%; border-bottom:1px solid #e5e7eb;">{{ $it['date'] }}</td>
+                    <td style="border-bottom:1px solid #e5e7eb;">{{ $it['name'] }}</td>
+                    <td style="width:25%; text-align:right; border-bottom:1px solid #e5e7eb;">¥{{ number_format((float)($it['amount'] ?? 0)) }}</td>
+                  </tr>
+                  @endforeach
+                </tbody>
+              </table>
             </div>
+            <!-- Previous month (lower half) -->
+            <div class="header" style="text-align:left; margin:4mm 0 3mm;">
+              <div class="brand">{{ '令和' . sprintf('%02d', ((int)($row['previous_year'] ?? $year) - 2018)) . '年 ' . (int)($row['previous_month'] ?? 0) . '月分　領収書' }}</div>
+            </div>
+            <div class="block" style="margin-bottom:3mm;">
+              <div style="font-size:11px; color:#6b7280;">対象</div>
+              <div>{{ (int)($row['previous_year'] ?? 0) }}年 {{ (int)($row['previous_month'] ?? 0) }}月</div>
+            </div>
+            <div class="block" style="flex:1;">
+              <div style="font-weight:700; margin-bottom:2mm;">明細</div>
+              <table style="width:100%; border-collapse:collapse; font-variant-numeric: tabular-nums;">
+                <tbody>
+                  @foreach (($row['previous_items'] ?? []) as $it)
+                  <tr>
+                    <td style="width:22%; border-bottom:1px solid #e5e7eb;">{{ $it['date'] }}</td>
+                    <td style="border-bottom:1px solid #e5e7eb;">{{ $it['name'] }}</td>
+                    <td style="width:25%; text-align:right; border-bottom:1px solid #e5e7eb;">¥{{ number_format((float)($it['amount'] ?? 0)) }}</td>
+                  </tr>
+                  @endforeach
+                </tbody>
+              </table>
+              <div style="text-align:right; margin-top:2mm;">合計: ¥{{ number_format((float)($row['previous_amount'] ?? 0)) }}</div>
+            </div>
+          </div>
         </div>
+      </div>
     @endforeach
 </body>
 

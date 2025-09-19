@@ -173,6 +173,45 @@
                     </div>
                 </div>
             </div>
+
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">その他入金</h5>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="addOtherPaymentBtn"><i class="fas fa-plus"></i> 入金行を追加</button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle" id="otherPaymentsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 60px;">No</th>
+                                    <th style="width: 160px;">入金日</th>
+                                    <th style="width: 200px;">入金金額</th>
+                                    <th>摘要</th>
+                                    <th style="width: 120px;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @php($otherPayments = $payment->items->where('category','other_payment'))
+                                @foreach($otherPayments as $i => $op)
+                                <tr>
+                                    <td><input type="number" class="form-control form-control-sm" name="other_payments[{{ $i }}][row_no]" value="{{ $op->row_no }}"></td>
+                                    <td><input type="date" class="form-control form-control-sm" name="other_payments[{{ $i }}][item_date]" value="{{ optional($op->item_date)->format('Y-m-d') }}"></td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">¥</span>
+                                            <input type="number" step="0.01" class="form-control" name="other_payments[{{ $i }}][amount]" value="{{ $op->amount }}">
+                                        </div>
+                                    </td>
+                                    <td><input type="text" class="form-control form-control-sm" name="other_payments[{{ $i }}][notes]" value="{{ $op->notes }}" placeholder="摘要"></td>
+                                    <td><button type="button" class="btn btn-sm btn-outline-danger delRow">×</button></td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                 <a href="{{ route('payments.index') }}" class="btn btn-outline-secondary me-md-2">キャンセル</a>
                 <button type="submit" class="btn btn-primary">
@@ -189,6 +228,8 @@
 document.addEventListener('DOMContentLoaded', () => {
   const tbody = document.querySelector('#itemsTable tbody');
   const addBtn = document.getElementById('addRowBtn');
+  const otherTbody = document.querySelector('#otherPaymentsTable tbody');
+  const addOtherBtn = document.getElementById('addOtherPaymentBtn');
 
   function toNumber(v){
     const n = parseFloat((v||'').toString().replace(/[^0-9.\-]/g,''));
@@ -258,6 +299,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   addBtn.addEventListener('click', ()=> addRow());
   recalcTotals();
+
+  // その他入金 UI
+  function addOtherPaymentRow(data={}){
+    const index = otherTbody.children.length;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="number" class="form-control form-control-sm" name="other_payments[${index}][row_no]" value="${index+1}"></td>
+      <td><input type="date" class="form-control form-control-sm" name="other_payments[${index}][item_date]" value="${data.item_date||''}"></td>
+      <td>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text">¥</span>
+          <input type="number" step="0.01" class="form-control" name="other_payments[${index}][amount]" value="${data.amount||''}">
+        </div>
+      </td>
+      <td><input type="text" class="form-control form-control-sm" name="other_payments[${index}][notes]" value="${data.notes||''}" placeholder="摘要"></td>
+      <td><button type="button" class="btn btn-sm btn-outline-danger delRow">×</button></td>
+    `;
+    otherTbody.appendChild(tr);
+    tr.querySelector('.delRow').addEventListener('click', ()=>{ tr.remove(); });
+  }
+
+  if(addOtherBtn){ addOtherBtn.addEventListener('click', ()=> addOtherPaymentRow()); }
 });
 </script>
 @endsection

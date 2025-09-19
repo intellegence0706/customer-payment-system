@@ -117,7 +117,7 @@ class Customer extends Model
         return null;
     }
 
-    // Call bank API to get bank name by code
+  
     private function callBankAPI($code)
     {
         $config = config('banking.bankcode_jp');

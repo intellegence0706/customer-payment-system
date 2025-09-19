@@ -72,14 +72,14 @@
     </div>
 </div>
 
-<!-- Customers Cards/Table -->
-<div class="row">
+
+<div class="row"> 
     @forelse($customers as $customer)
         <div class="col-12 mb-4">
             <div class="card shadow-sm border-0 payment-status-{{ $customer->payment_classification ?? 'default' }}">
                 <div class="card-body">
                     <div class="row align-items-center">
-                        <!-- Main Customer Info -->
+                        
                         <div class="col-md-3">
                             <div class="d-flex align-items-center mb-2">
                                 <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" 
@@ -94,7 +94,6 @@
                             </div>
                         </div>
 
-                        <!-- Payment Information -->
                         <div class="col-md-3">
                             <div class="mb-2">
                                 <small class="text-muted d-block">支払情報</small>
@@ -246,14 +245,13 @@
     @endforelse
 </div>
 
-<!-- Pagination -->
 @if($customers->hasPages())
 <div class="d-flex justify-content-between align-items-center mt-4">
     <div class="text-muted">
         <small>全 {{ $customers->total() }} 件中 {{ $customers->firstItem() ?? 0 }} 〜 {{ $customers->lastItem() ?? 0 }} を表示</small>
     </div>
     <div>
-        {{ $customers->links() }}
+        {{ $customers->links('pagination::bootstrap-5') }}
     </div>
 </div>
 @endif
@@ -301,7 +299,7 @@ function toggleAllDetails(expand) {
     });
 }
 
-// Handle individual toggle button icon changes
+
 document.addEventListener('DOMContentLoaded', function() {
     const toggleButtons = document.querySelectorAll('[data-bs-target^="#details-"]');
     
@@ -322,7 +320,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
-/* Custom styles for enhanced visual appeal */
+
 .card {
     transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
 }
@@ -348,7 +346,7 @@ document.addEventListener('DOMContentLoaded', function() {
     transform: scale(1.1);
 }
 
-/* Responsive improvements */
+
 @media (max-width: 768px) {
     .col-md-3, .col-md-4, .col-md-2 {
         margin-bottom: 1rem;
@@ -363,17 +361,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 }
 
-/* Color-coded payment status */
+
 .payment-status-21 { border-left: 4px solid #28a745; }
 .payment-status-22 { border-left: 4px solid #ffc107; }
 .payment-status-23 { border-left: 4px solid #dc3545; }
 
-/* Enhanced typography */
 .fw-semibold {
     font-weight: 600;
 }
 
-/* Improved spacing for details section */
+
 .collapse .row > div {
     padding: 0.5rem;
     background: rgba(248, 249, 250, 0.5);

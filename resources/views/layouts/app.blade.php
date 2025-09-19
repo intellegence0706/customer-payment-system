@@ -634,21 +634,21 @@
                         <div class="nav-icon">
                             <i class="fas fa-credit-card"></i>
                         </div>
-                        <span class="nav-text">入金管理</span>
+                        <span class="nav-text">請求管理</span>
                     </a>
                 </div>
             </div>
 
             <div class="nav-section" data-aos="fade-right" data-aos-delay="300">
                 <div class="nav-section-title">データ管理</div>
-                <div class="nav-item">
+                <!-- <div class="nav-item">
                     <a href="{{ route('payments.upload-form') }}" class="nav-link-modern">
                         <div class="nav-icon">
                             <i class="fas fa-upload"></i>
                         </div>
                         <span class="nav-text">データ取込</span>
                     </a>
-                </div>
+                </div> -->
                 <div class="nav-item">
                     <a href="{{ route('customers.import') }}" class="nav-link-modern">
                         <div class="nav-icon">
@@ -663,6 +663,14 @@
                             <i class="fas fa-mail-bulk"></i>
                         </div>
                         <span class="nav-text">はがきデータ</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="{{ route('payments.detailed.import') }}" class="nav-link-modern {{ request()->routeIs('payments.detailed.*') ? 'active' : '' }}">
+                        <div class="nav-icon">
+                            <i class="fas fa-file-upload"></i>
+                        </div>
+                        <span class="nav-text">請求情報キャプチャ</span>
                     </a>
                 </div>
             </div>

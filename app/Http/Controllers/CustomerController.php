@@ -443,9 +443,10 @@ class CustomerController extends Controller
             'account_holder_name' => $data[4] ?? null,
             'payment_classification' => $data[5] ?? null,
             'payment_method' => $data[6] ?? null,
-            'billing_amount' => $data[7] ?? null,
-            'collection_request_amount' => $data[8] ?? null,
-            'consumption_tax' => $data[9] ?? null,
+            // Normalize numeric fields so blanks do not cause DB errors
+            'billing_amount' => $this->parseNullableDecimal($data[7] ?? null),
+            'collection_request_amount' => $this->parseNullableDecimal($data[8] ?? null),
+            'consumption_tax' => $this->parseNullableDecimal($data[9] ?? null),
             'bank_number' => $data[10] ?? null,
             'bank_name' => $data[11] ?? null,
             'branch_number' => $data[12] ?? null,
@@ -457,16 +458,10 @@ class CustomerController extends Controller
             'billing_prefecture' => $data[18] ?? null,
             'billing_city' => $data[19] ?? null,
             'billing_street' => $data[20] ?? null,
-            'billing_difference' => $data[21] ?? null,
+            'billing_building' => $data[21] ?? null,
+            'billing_difference' => $this->parseNullableDecimal($data[21] ?? null),
         ];
-
-        // Only create if customer_number exists and is unique
-        if (!empty($customerData['customer_number'])) {
-            Customer::updateOrCreate(
-                ['customer_number' => $customerData['customer_number']],
-                $customerData
-            );
-        }
+        $this->saveOrUpdateCustomer($customerData);
     }
 
     /**
@@ -765,21 +760,12 @@ class CustomerController extends Controller
 
                 try {
                     $customerData = $this->parseCustomerRowFromXlsx($row);
-                    
-                    if (!empty($customerData['customer_number'])) {
-                        $customer = Customer::updateOrCreate(
-                            ['customer_number' => $customerData['customer_number']],
-                            $customerData
-                        );
-                        Log::info('Customer saved/updated', [
-                            'id' => $customer->id,
-                            'customer_number' => $customerData['customer_number'],
-                            'customer_code' => $customerData['customer_code']
-                        ]);
-                    } else {
-                        $customer = Customer::create($customerData);
-                        Log::info('New customer created', ['id' => $customer->id]);
-                    }
+                    $customer = $this->saveOrUpdateCustomer($customerData);
+                    Log::info('Customer saved via XLSX import', [
+                        'id' => $customer->id ?? null,
+                        'customer_number' => $customerData['customer_number'] ?? null,
+                        'customer_code' => $customerData['customer_code'] ?? null
+                    ]);
 
                     $results['success_count']++;
 
@@ -821,12 +807,14 @@ class CustomerController extends Controller
             'account_holder_name' => trim($row[4] ?? ''),     // 口座人氏名
             'payment_classification' => trim($row[5] ?? ''),  // 支払区分
             'payment_method' => trim($row[6] ?? ''),          // 支払方法
-            'billing_amount' => $this->parseDecimal($row[7] ?? 0),           // 請求金額
-            'collection_request_amount' => $this->parseDecimal($row[8] ?? 0), // 徴収請求額
-            'consumption_tax' => $this->parseDecimal($row[9] ?? 0),          // 消費税
-            'bank_number' => $this->formatBankCode($row[10] ?? ''),          // 銀行番号
+            // Numeric fields: treat blanks as null to avoid import errors
+            'billing_amount' => $this->parseNullableDecimal($row[7] ?? null),
+            'collection_request_amount' => $this->parseNullableDecimal($row[8] ?? null),
+            'consumption_tax' => $this->parseNullableDecimal($row[9] ?? null),
+            // Codes: keep null when blank; otherwise normalize length
+            'bank_number' => strlen(trim((string)($row[10] ?? ''))) ? $this->formatBankCode($row[10]) : null,
             'bank_name' => trim($row[11] ?? ''),              // 銀行名
-            'branch_number' => $this->formatBranchCode($row[12] ?? ''),      // 支店番号
+            'branch_number' => strlen(trim((string)($row[12] ?? ''))) ? $this->formatBranchCode($row[12]) : null,
             'branch_name' => trim($row[13] ?? ''),            // 支店名
             'deposit_type' => trim($row[14] ?? ''),           // 預金種目
             'account_number' => trim($row[15] ?? ''),         // 口座番号
@@ -865,6 +853,55 @@ class CustomerController extends Controller
     }
 
     /**
+     * Persist customer data with duplicate-safe logic.
+     * Priority of matching keys:
+     * 1) customer_number
+     * 2) customer_code
+     * 3) user_name + account_number
+     * 4) user_name + bank_number + branch_number + account_number
+     */
+    private function saveOrUpdateCustomer(array $customerData)
+    {
+        $existing = $this->resolveExistingCustomer($customerData);
+        if ($existing) {
+            $existing->update($customerData);
+            return $existing;
+        }
+        return Customer::create($customerData);
+    }
+
+    private function resolveExistingCustomer(array $data)
+    {
+        // 1) Match by customer_number
+        if (!empty($data['customer_number'])) {
+            $found = Customer::where('customer_number', $data['customer_number'])->first();
+            if ($found) return $found;
+        }
+        // 2) Match by customer_code
+        if (!empty($data['customer_code'])) {
+            $found = Customer::where('customer_code', $data['customer_code'])->first();
+            if ($found) return $found;
+        }
+        // 3) user_name + account_number
+        if (!empty($data['user_name']) && !empty($data['account_number'])) {
+            $found = Customer::where('user_name', $data['user_name'])
+                ->where('account_number', $data['account_number'])
+                ->first();
+            if ($found) return $found;
+        }
+        // 4) user_name + bank/branch/account
+        if (!empty($data['user_name']) && !empty($data['bank_number']) && !empty($data['branch_number']) && !empty($data['account_number'])) {
+            $found = Customer::where('user_name', $data['user_name'])
+                ->where('bank_number', $data['bank_number'])
+                ->where('branch_number', $data['branch_number'])
+                ->where('account_number', $data['account_number'])
+                ->first();
+            if ($found) return $found;
+        }
+        return null;
+    }
+
+    /**
      * Parse decimal value from Excel cell
      */
     private function parseDecimal($value)
@@ -877,6 +914,22 @@ class CustomerController extends Controller
         $cleaned = preg_replace('/[^\d.-]/', '', $value);
         
         return is_numeric($cleaned) ? (float)$cleaned : 0.00;
+    }
+
+    /**
+     * Parse decimal value, returning null when blank.
+     */
+    private function parseNullableDecimal($value)
+    {
+        if ($value === null) {
+            return null;
+        }
+        $trimmed = trim((string)$value);
+        if ($trimmed === '') {
+            return null;
+        }
+        $cleaned = preg_replace('/[^\d.-]/', '', $trimmed);
+        return is_numeric($cleaned) ? (float)$cleaned : null;
     }
 
     /**

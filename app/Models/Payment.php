@@ -21,7 +21,8 @@ class Payment extends Model
         'payment_date',
         'receipt_number',
         'status',
-        'notes'
+        'notes',
+        'import_batch_id'
     ];
 
     protected $casts = [

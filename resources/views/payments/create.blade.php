@@ -91,18 +91,47 @@
                 </div>
             </div>
 
+            <!-- お知らせ -->
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">明細（利用料金・その他徴収）</h5>
-                    <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-primary" id="addRowBtn"><i class="fas fa-plus"></i> 行を追加</button>
+                    <h5 class="mb-0"><i class="far fa-bell me-1"></i> お知らせ</h5>
+                    <button type="button" class="btn btn-sm btn-outline-primary text-white" id="addNoticeRowBtn"><i class="fas fa-plus"></i> 行を追加</button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle" id="noticeItemsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 60px;">No</th>
+                                    <th style="width: 130px;">日付</th>
+                                    <th style="width: 240px;">内容</th>
+                                    <th style="width: 120px;">数量</th>
+                                    <th style="width: 140px;">単価</th>
+                                    <th style="width: 140px;">金額</th>
+                                    <th style="width: 130px;">税率(%)</th>
+                                    <th style="width: 140px;">税額</th>
+                                    <th style="width: 220px;">備考</th>
+                                    <th style="width: 120px;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 当月レンタル請求 -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="far fa-calendar-check me-1"></i> 当月レンタル請求</h5>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="text-nowrap small">請求合計: <span id="total-current" class="section-total">¥0</span></div>
+                        <button type="button" class="btn btn-sm btn-outline-primary text-white" id="addCurrentRowBtn"><i class="fas fa-plus"></i> 行を追加</button>
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="small text-muted mb-2">
-                    </div>
                     <div class="table-responsive">
-                        <table class="table table-sm align-middle" id="itemsTable">
+                        <table class="table table-sm align-middle" id="currentItemsTable">
                             <thead class="table-light">
                                 <tr>
                                     <th style="width: 60px;">No</th>
@@ -114,16 +143,89 @@
                                     <th style="width: 140px;">金額</th>
                                     <th style="width: 130px;">税率(%)</th>
                                     <th style="width: 140px;">税額</th>
-                                    <th style="width: 160px;">区分</th>
                                     <th style="width: 220px;">備考</th>
                                     <th style="width: 120px;">操作</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                            </tbody>
+                            <tbody></tbody>
                         </table>
                     </div>
-                    <div class="row g-3 mt-3 sticky-summary">
+                </div>
+            </div>
+
+            <!-- 先月請求 -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="far fa-calendar-minus me-1"></i> 先月請求</h5>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="text-nowrap small">請求合計: <span id="total-previous" class="section-total">¥0</span></div>
+                        <button type="button" class="btn btn-sm btn-outline-primary text-white" id="addPreviousRowBtn"><i class="fas fa-plus"></i> 行を追加</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle" id="previousItemsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 60px;">No</th>
+                                    <th style="width: 130px;">日付</th>
+                                    <th style="width: 140px;">商品コード</th>
+                                    <th style="width: 240px;">商品名</th>
+                                    <th style="width: 120px;">数量</th>
+                                    <th style="width: 140px;">単価</th>
+                                    <th style="width: 140px;">金額</th>
+                                    <th style="width: 130px;">税率(%)</th>
+                                    <th style="width: 140px;">税額</th>
+                                    <th style="width: 220px;">備考</th>
+                                    <th style="width: 120px;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- その他請求 -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="far fa-receipt me-1"></i> その他請求</h5>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="text-nowrap small">請求合計: <span id="total-other-charges" class="section-total">¥0</span></div>
+                        <button type="button" class="btn btn-sm btn-outline-primary text-white" id="addOtherChargeRowBtn"><i class="fas fa-plus"></i>行を追加</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle" id="otherChargesTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 60px;">No</th>
+                                    <th style="width: 130px;">日付</th>
+                                    <th style="width: 140px;">商品コード</th>
+                                    <th style="width: 240px;">商品名</th>
+                                    <th style="width: 120px;">数量</th>
+                                    <th style="width: 140px;">単価</th>
+                                    <th style="width: 140px;">金額</th>
+                                    <th style="width: 130px;">税率(%)</th>
+                                    <th style="width: 140px;">税額</th>
+                                    <th style="width: 220px;">備考</th>
+                                    <th style="width: 120px;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 集計エリア -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">集計</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 sticky-summary">
                         <div class="col-md-3 ms-auto">
                             <label class="form-label">小計</label>
                             <div class="input-group">
@@ -139,7 +241,7 @@
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label">その他合計</label>
+                            <label class="form-label">その他請求合計</label>
                             <div class="input-group">
                                 <span class="input-group-text">¥</span>
                                 <input type="text" readonly class="form-control text-end" id="other_fees_total" name="other_fees_total">
@@ -152,6 +254,33 @@
                                 <input type="text" readonly class="form-control text-end" id="grand_total" name="grand_total">
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>  
+
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="far fa-hand-holding-usd me-1"></i> その他入金</h5>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="text-nowrap small">入金合計: <span id="total-other-payments" class="section-total">¥0</span></div>
+                        <button type="button" class="btn btn-sm btn-outline-primary text-white" id="addOtherPaymentBtn"><i class="fas fa-plus"></i> 入金行を追加</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle" id="otherPaymentsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 60px;">No</th>
+                                    <th style="width: 160px;">入金日</th>
+                                    <th style="width: 200px;">入金金額</th>
+                                    <th>摘要</th>
+                                    <th style="width: 120px;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -168,15 +297,57 @@
 
 @section('scripts')
 <style>
-.sticky-summary { position: sticky; bottom: 0; background: rgba(255,255,255,.9); backdrop-filter: blur(4px); padding-top: .75rem; border-top: 1px solid #e9ecef; }
-.table-sm input { height: 34px; }
-.table-sm thead th { position: sticky; top: 0; z-index: 1; }
+/* Layout polish */
+.card { box-shadow: 0 3px 12px rgba(17,24,39,.06); border-radius: 12px; overflow: hidden; }
+.card-header { background: linear-gradient(90deg, #6c5ce7 0%, #a66cff 100%); color: #fff; }
+.card-header h5 { display: flex; align-items: center; gap: .5rem; margin: 0; }
+.card-header h5::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.85); }
+
+/* Tables */
+.table-sm thead th { position: sticky; top: 0; z-index: 1; background: #f8fafc !important; }
+.table-sm tbody tr:hover { background: #f9f9ff; }
+.table-sm input, .table-sm select { height: 34px; }
+.table-sm input[type="number"], .text-end { text-align: right; }
+.section-total { background: #fff; color: #6c5ce7; border: 1px solid #eae7ff; padding: .25rem .6rem; border-radius: 999px; font-weight: 700; box-shadow: 0 1px 4px rgba(108,92,231,.15); }
+.sticky-summary { position: sticky; bottom: 0; background: rgba(255,255,255,.95); backdrop-filter: blur(6px); padding-top: .75rem; border-top: 1px solid #ececf6; box-shadow: 0 -6px 20px rgba(0,0,0,.04); }
+.sticky-summary .input-group-text { background: #f3f0ff; color: #6c5ce7; font-weight: 600; }
+.btn-outline-primary { --bs-btn-color:#6c5ce7; --bs-btn-border-color:#6c5ce7; --bs-btn-hover-bg:#6c5ce7; --bs-btn-hover-border-color:#6c5ce7; }
+.btn-primary { background:#6c5ce7; border-color:#6c5ce7; }
 </style>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  const tbody = document.querySelector('#itemsTable tbody');
-  const addBtn = document.getElementById('addRowBtn');
-  const quickAddEls = document.querySelectorAll('.quick-add');
+  const sections = {
+    notice: {
+      tbody: document.querySelector('#noticeItemsTable tbody'),
+      addBtn: document.getElementById('addNoticeRowBtn'),
+      totalEl: null,
+      category: 'notice'
+    },
+    current: {
+      tbody: document.querySelector('#currentItemsTable tbody'),
+      addBtn: document.getElementById('addCurrentRowBtn'),
+      totalEl: document.getElementById('total-current'),
+      category: ''
+    },
+    previous: {
+      tbody: document.querySelector('#previousItemsTable tbody'),
+      addBtn: document.getElementById('addPreviousRowBtn'),
+      totalEl: document.getElementById('total-previous'),
+      category: 'previous_balance'
+    },
+    otherCharges: {
+      tbody: document.querySelector('#otherChargesTable tbody'),
+      addBtn: document.getElementById('addOtherChargeRowBtn'),
+      totalEl: document.getElementById('total-other-charges'),
+      category: 'other_charges'
+    }
+  };
+
+  const otherPayments = {
+    tbody: document.querySelector('#otherPaymentsTable tbody'),
+    addBtn: document.getElementById('addOtherPaymentBtn'),
+    totalEl: document.getElementById('total-other-payments')
+  };
 
   function toNumber(v){
     const n = parseFloat((v||'').toString().replace(/[^0-9.\-]/g,''));
@@ -186,36 +357,54 @@ document.addEventListener('DOMContentLoaded', () => {
     return (n||0).toLocaleString('ja-JP', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
-  function recalcTotals(){
-    let subtotal=0, taxTotal=0, otherTotal=0;
-    tbody.querySelectorAll('tr').forEach((tr) => {
-      const qty = toNumber(tr.querySelector('.item-qty').value);
-      const unit = toNumber(tr.querySelector('.item-unit').value);
-      const taxRate = toNumber(tr.querySelector('.item-taxrate').value);
-      const category = tr.querySelector('.item-category').value;
-      const amount = qty * unit;
-      tr.querySelector('.item-amount').value = amount.toFixed(2);
-      const tax = Math.round(((amount * taxRate) / 100) * 100) / 100; // round to 2dp
-      tr.querySelector('.item-tax').value = tax.toFixed(2);
-      subtotal += amount;
-      taxTotal += tax;
-      if(category === 'other_charges'){ otherTotal += amount + tax; }
-    });
-    document.getElementById('subtotal_amount').value = formatYen(subtotal);
-    document.getElementById('tax_total').value = formatYen(taxTotal);
-    document.getElementById('other_fees_total').value = formatYen(otherTotal);
-    document.getElementById('grand_total').value = formatYen(subtotal + taxTotal + otherTotal);
-    // set overall amount field to grand total for convenience
-    const amountInput = document.getElementById('amount');
-    if (amountInput) amountInput.value = (Math.round((subtotal + taxTotal + otherTotal) * 100) / 100).toFixed(2);
+  function nextItemIndex(){
+    return sections.notice.tbody.children.length
+         + sections.current.tbody.children.length
+         + sections.previous.tbody.children.length
+         + sections.otherCharges.tbody.children.length;
   }
 
-  function addRow(data={}){
-    const index = tbody.children.length;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
+  function recalcTotals(){
+    let subtotal=0, taxTotal=0, otherFeesTotal=0;
+    const bySection = { notice:0, current:0, previous:0, otherCharges:0 };
+
+    Object.entries(sections).forEach(([key, sec]) => {
+      sec.tbody.querySelectorAll('tr').forEach((tr) => {
+        const qty = toNumber(tr.querySelector('.item-qty').value);
+        const unit = toNumber(tr.querySelector('.item-unit').value);
+        const taxRate = toNumber(tr.querySelector('.item-taxrate').value);
+        const amount = qty * unit;
+        tr.querySelector('.item-amount').value = amount.toFixed(2);
+        const tax = Math.round(((amount * taxRate) / 100) * 100) / 100;
+        tr.querySelector('.item-tax').value = tax.toFixed(2);
+        subtotal += amount;
+        taxTotal += tax;
+        if (key === 'otherCharges') { otherFeesTotal += amount + tax; }
+        bySection[key] += amount + tax;
+      });
+      if (sec.totalEl) sec.totalEl.textContent = '¥' + formatYen(bySection[key]);
+    });
+
+    document.getElementById('subtotal_amount').value = formatYen(subtotal);
+    document.getElementById('tax_total').value = formatYen(taxTotal);
+    document.getElementById('other_fees_total').value = formatYen(otherFeesTotal);
+    document.getElementById('grand_total').value = formatYen(subtotal + taxTotal + otherFeesTotal);
+
+    const amountInput = document.getElementById('amount');
+    if (amountInput) amountInput.value = (Math.round((subtotal + taxTotal + otherFeesTotal) * 100) / 100).toFixed(2);
+
+    // Other payments total
+    let otherPaySum = 0;
+    otherPayments.tbody.querySelectorAll('tr').forEach((tr) => {
+      otherPaySum += toNumber(tr.querySelector('.op-amount')?.value);
+    });
+    if (otherPayments.totalEl) otherPayments.totalEl.textContent = '¥' + formatYen(otherPaySum);
+  }
+
+  function rowTemplate(index, data){
+    return `
       <td><input type="number" class="form-control form-control-sm" name="items[${index}][row_no]" value="${index+1}"></td>
-      <td><input type="date" class="form-control form-control-sm" name="items[${index}][item_date]" value="${data.item_date||''}" placeholder="mm/dd"></td>
+      <td><input type="date" class="form-control form-control-sm" name="items[${index}][item_date]" value="${data.item_date||''}"></td>
       <td><input type="text" class="form-control form-control-sm" name="items[${index}][product_code]" value="${data.product_code||''}" placeholder="商品コード"></td>
       <td><input type="text" class="form-control form-control-sm" name="items[${index}][product_name]" value="${data.product_name||''}" placeholder="例：車イスレンタル" required></td>
       <td><input type="number" step="0.01" class="form-control form-control-sm item-qty" name="items[${index}][quantity]" value="${data.quantity||1}"></td>
@@ -230,14 +419,6 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </td>
       <td><input type="number" step="0.01" class="form-control form-control-sm item-tax" name="items[${index}][tax_amount]" value="${data.tax_amount||0}" readonly></td>
-      <td>
-        <select class="form-select form-select-sm item-category" name="items[${index}][category]">
-          <option value="">通常</option>
-          <option value="other_charges">その他徴収</option>
-          <option value="notice">お知らせ</option>
-          <option value="previous_balance">前月繰越</option>
-        </select>
-      </td>
       <td><input type="text" class="form-control form-control-sm item-note" name="items[${index}][notes]" value="${data.notes||''}" placeholder="備考（任意）"></td>
       <td class="text-nowrap">
         <button type="button" class="btn btn-sm btn-outline-secondary me-1 dupRow" title="複製">⎘</button>
@@ -245,36 +426,68 @@ document.addEventListener('DOMContentLoaded', () => {
         <button type="button" class="btn btn-sm btn-outline-secondary me-1 moveDown" title="下へ">↓</button>
         <button type="button" class="btn btn-sm btn-outline-danger delRow" title="削除">×</button>
       </td>
+      <input type="hidden" name="items[${index}][category]" value="${data.category||''}">
     `;
-    tbody.appendChild(tr);
+  }
+
+  function attachRowHandlers(tr, tbody){
     tr.addEventListener('input', (e)=>{
       if(e.target.matches('.item-qty, .item-unit, .item-taxrate')) recalcTotals();
     });
     tr.querySelector('.delRow').addEventListener('click', ()=>{ tr.remove(); recalcTotals(); });
     tr.querySelector('.dupRow').addEventListener('click', ()=>{
-      const inputs = tr.querySelectorAll('input, select');
+      const inputs = tr.querySelectorAll('input');
       const data = {};
-      inputs.forEach(i=>{ const name=i.name.match(/items\[[0-9]+\]\[(.+)\]/); if(name){ data[name[1]] = i.value; }});
-      addRow(data);
+      inputs.forEach(i=>{ const m=i.name && i.name.match(/items\[[0-9]+\]\[(.+)\]/); if(m){ data[m[1]] = i.value; }});
+      addRow(tbody.dataset.section, data);
     });
     tr.querySelector('.moveUp').addEventListener('click', ()=>{ const prev = tr.previousElementSibling; if(prev){ tbody.insertBefore(tr, prev); }});
     tr.querySelector('.moveDown').addEventListener('click', ()=>{ const next = tr.nextElementSibling; if(next){ tbody.insertBefore(next, tr); }});
+  }
+
+  function addRow(sectionKey, data={}){
+    const sec = sections[sectionKey];
+    const index = nextItemIndex();
+    const tr = document.createElement('tr');
+    sec.tbody.dataset.section = sectionKey;
+    tr.innerHTML = rowTemplate(index, { ...data, category: sec.category });
+    sec.tbody.appendChild(tr);
+    attachRowHandlers(tr, sec.tbody);
     recalcTotals();
   }
 
-  addBtn.addEventListener('click', ()=> addRow());
-  // start with one row
-  addRow();
+  function addOtherPaymentRow(data={}){
+    const index = otherPayments.tbody.children.length;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="number" class="form-control form-control-sm" name="other_payments[${index}][row_no]" value="${index+1}"></td>
+      <td><input type="date" class="form-control form-control-sm" name="other_payments[${index}][item_date]" value="${data.item_date||''}"></td>
+      <td>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text">¥</span>
+          <input type="number" step="0.01" class="form-control op-amount" name="other_payments[${index}][amount]" value="${data.amount||''}">
+        </div>
+        <input type="hidden" name="other_payments[${index}][category]" value="other_payment">
+      </td>
+      <td><input type="text" class="form-control form-control-sm" name="other_payments[${index}][notes]" value="${data.notes||''}" placeholder="摘要"></td>
+      <td class="text-nowrap">
+        <button type="button" class="btn btn-sm btn-outline-danger delRow">×</button>
+      </td>
+    `;
+    otherPayments.tbody.appendChild(tr);
+    tr.querySelector('.delRow').addEventListener('click', ()=>{ tr.remove(); recalcTotals(); });
+    tr.addEventListener('input', ()=> recalcTotals());
+    recalcTotals();
+  }
 
-  quickAddEls.forEach(el => el.addEventListener('click', (e)=>{
-    e.preventDefault();
-    addRow({
-      product_name: el.dataset.name || '',
-      quantity: el.dataset.qty || 1,
-      unit_price: el.dataset.unit || 0,
-      tax_rate: el.dataset.tax || 10
-    });
-  }));
+  sections.notice.addBtn.addEventListener('click', ()=> addRow('notice'));
+  sections.current.addBtn.addEventListener('click', ()=> addRow('current'));
+  sections.previous.addBtn.addEventListener('click', ()=> addRow('previous'));
+  sections.otherCharges.addBtn.addEventListener('click', ()=> addRow('otherCharges'));
+  otherPayments.addBtn.addEventListener('click', ()=> addOtherPaymentRow());
+
+  // 初期行
+  addRow('current');
 });
 </script>
 @endsection
