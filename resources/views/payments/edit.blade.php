@@ -8,9 +8,9 @@
             <i class="fas fa-arrow-left me-1"></i> 入金一覧に戻る
         </a>
     </div>
- </div>
+</div>
 
- <div class="row">
+<div class="row">
     <div class="col-lg-12">
         <form method="POST" action="{{ route('payments.update', $payment) }}">
             @csrf
@@ -22,52 +22,55 @@
                 <div class="card-body">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label for="customer_id" class="form-label">顧客 <span class="text-danger">*</span></label>
-                            <select class="form-select @error('customer_id') is-invalid @enderror" id="customer_id" name="customer_id" required>
-                                <option value="">顧客を選択</option>
-                                @foreach($customers as $customer)
-                                    <option value="{{ $customer->id }}" {{ old('customer_id', $payment->customer_id) == $customer->id ? 'selected' : '' }}>
-                                        {{ $customer->name }} ({{ $customer->customer_number }})
-                                    </option>
-                                @endforeach
-                            </select>
+                            <label for="customer_code_input" class="form-label">顧客コード <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="customer_code_input" placeholder="顧客コードを入力">
+                                <button type="button" class="btn btn-outline-secondary" id="customer_code_search_btn">検索</button>
+                            </div>
+                            <input type="hidden" name="customer_id" id="customer_id" value="{{ old('customer_id', $payment->customer_id) }}">
+                            <div id="customer_info_display" class="form-text mt-1">未選択</div>
                             @error('customer_id')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
+                        </div>
+                        <div id="customerDataset" class="d-none">
+                            @foreach($customers as $c)
+                            <span class="cust" data-id="{{ $c->id }}" data-code="{{ $c->customer_number }}" data-name="{{ $c->name }}"></span>
+                            @endforeach
                         </div>
                         <div class="col-md-3">
                             <label for="payment_month" class="form-label">月 <span class="text-danger">*</span></label>
                             <input type="number" class="form-control @error('payment_month') is-invalid @enderror" id="payment_month" name="payment_month" min="1" max="12" value="{{ old('payment_month', $payment->payment_month) }}" required>
                             @error('payment_month')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-3">
                             <label for="payment_year" class="form-label">年 <span class="text-danger">*</span></label>
                             <input type="number" class="form-control @error('payment_year') is-invalid @enderror" id="payment_year" name="payment_year" min="2020" value="{{ old('payment_year', $payment->payment_year) }}" required>
                             @error('payment_year')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-6">
                             <label for="amount" class="form-label">金額 <span class="text-danger">*</span></label>
                             <input type="number" step="0.01" class="form-control @error('amount') is-invalid @enderror" id="amount" name="amount" value="{{ old('amount', $payment->amount) }}" required>
                             @error('amount')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-6">
                             <label for="payment_date" class="form-label">入金日 <span class="text-danger">*</span></label>
                             <input type="date" class="form-control @error('payment_date') is-invalid @enderror" id="payment_date" name="payment_date" value="{{ old('payment_date', optional($payment->payment_date)->format('Y-m-d')) }}" required>
                             @error('payment_date')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-6">
                             <label for="receipt_number" class="form-label">領収書番号</label>
                             <input type="text" class="form-control @error('receipt_number') is-invalid @enderror" id="receipt_number" name="receipt_number" value="{{ old('receipt_number', $payment->receipt_number) }}">
                             @error('receipt_number')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-6">
@@ -78,14 +81,14 @@
                                 <option value="failed" {{ old('status', $payment->status) == 'failed' ? 'selected' : '' }}>失敗</option>
                             </select>
                             @error('status')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-12">
                             <label for="notes" class="form-label">備考</label>
                             <textarea class="form-control @error('notes') is-invalid @enderror" id="notes" name="notes" rows="2">{{ old('notes', $payment->notes) }}</textarea>
                             @error('notes')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                     </div>
@@ -220,49 +223,61 @@
             </div>
         </form>
     </div>
- </div>
+</div>
 @endsection
 
 @section('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  const tbody = document.querySelector('#itemsTable tbody');
-  const addBtn = document.getElementById('addRowBtn');
-  const otherTbody = document.querySelector('#otherPaymentsTable tbody');
-  const addOtherBtn = document.getElementById('addOtherPaymentBtn');
+    document.addEventListener('DOMContentLoaded', () => {
+        // 顧客一覧（軽量データ）: data-* 属性から配列化（jsonディレクティブの誤解釈回避）
+        const customerList = Array.from(document.querySelectorAll('#customerDataset .cust')).map(function(el) {
+            return {
+                id: el.getAttribute('data-id'),
+                code: el.getAttribute('data-code') || '',
+                name: el.getAttribute('data-name') || ''
+            };
+        });
+        const tbody = document.querySelector('#itemsTable tbody');
+        const addBtn = document.getElementById('addRowBtn');
+        const otherTbody = document.querySelector('#otherPaymentsTable tbody');
+        const addOtherBtn = document.getElementById('addOtherPaymentBtn');
 
-  function toNumber(v){
-    const n = parseFloat((v||'').toString().replace(/[^0-9.\-]/g,''));
-    return isNaN(n) ? 0 : n;
-  }
+        function toNumber(v) {
+            const n = parseFloat((v || '').toString().replace(/[^0-9.\-]/g, ''));
+            return isNaN(n) ? 0 : n;
+        }
 
-  function recalcTotals(){
-    let subtotal=0, taxTotal=0, otherTotal=0;
-    tbody.querySelectorAll('tr').forEach((tr) => {
-      const qty = toNumber(tr.querySelector('.item-qty').value);
-      const unit = toNumber(tr.querySelector('.item-unit').value);
-      const taxRate = toNumber(tr.querySelector('.item-taxrate').value);
-      const category = tr.querySelector('.item-category').value;
-      const amount = qty * unit;
-      tr.querySelector('.item-amount').value = amount.toFixed(2);
-      const tax = Math.round((amount * taxRate) )/100; // percentage
-      tr.querySelector('.item-tax').value = tax.toFixed(2);
-      subtotal += amount;
-      taxTotal += tax;
-      if(category === 'other_charges'){ otherTotal += amount + tax; }
-    });
-    document.getElementById('subtotal_amount').value = subtotal.toFixed(2);
-    document.getElementById('tax_total').value = taxTotal.toFixed(2);
-    document.getElementById('other_fees_total').value = otherTotal.toFixed(2);
-    document.getElementById('grand_total').value = (subtotal + taxTotal + otherTotal).toFixed(2);
-    const amountInput = document.getElementById('amount');
-    if (amountInput) amountInput.value = (subtotal + taxTotal + otherTotal).toFixed(2);
-  }
+        function recalcTotals() {
+            let subtotal = 0,
+                taxTotal = 0,
+                otherTotal = 0;
+            tbody.querySelectorAll('tr').forEach((tr) => {
+                const qty = toNumber(tr.querySelector('.item-qty').value);
+                const unit = toNumber(tr.querySelector('.item-unit').value);
+                const taxRate = toNumber(tr.querySelector('.item-taxrate').value);
+                const category = tr.querySelector('.item-category').value;
+                const amount = qty * unit;
+                tr.querySelector('.item-amount').value = amount.toFixed(2);
+                const tax = Math.round((amount * taxRate)) / 100; // percentage
+                tr.querySelector('.item-tax').value = tax.toFixed(2);
+                subtotal += amount;
+                taxTotal += tax;
+                if (category === 'other_charges') {
+                    otherTotal += amount + tax;
+                }
+            });
+            document.getElementById('subtotal_amount').value = subtotal.toFixed(2);
+            document.getElementById('tax_total').value = taxTotal.toFixed(2);
+            document.getElementById('other_fees_total').value = otherTotal.toFixed(2);
+            document.getElementById('grand_total').value = (subtotal + taxTotal + otherTotal).toFixed(2);
+            const amountInput = document.getElementById('amount');
+            if (amountInput) amountInput.value = (subtotal + taxTotal + otherTotal).toFixed(2);
+        }
 
-  function addRow(data={}){
-    const index = tbody.children.length;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
+        function addRow(data = {}) {
+            const index = tbody.children.length;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
       <td><input type=\"number\" class=\"form-control form-control-sm\" name=\"items[${index}][row_no]\" value=\"${index+1}\"></td>
       <td><input type=\"date\" class=\"form-control form-control-sm\" name=\"items[${index}][item_date]\" value=\"${data.item_date||''}\"></td>
       <td><input type=\"text\" class=\"form-control form-control-sm\" name=\"items[${index}][product_code]\" value=\"${data.product_code||''}\"></td>
@@ -282,29 +297,35 @@ document.addEventListener('DOMContentLoaded', () => {
       </td>
       <td><button type=\"button\" class=\"btn btn-sm btn-outline-danger delRow\">×</button></td>
     `;
-    tbody.appendChild(tr);
-    tr.addEventListener('input', (e)=>{
-      if(e.target.matches('.item-qty, .item-unit, .item-taxrate')) recalcTotals();
-    });
-    tr.querySelector('.delRow').addEventListener('click', ()=>{ tr.remove(); recalcTotals(); });
-    recalcTotals();
-  }
+            tbody.appendChild(tr);
+            tr.addEventListener('input', (e) => {
+                if (e.target.matches('.item-qty, .item-unit, .item-taxrate')) recalcTotals();
+            });
+            tr.querySelector('.delRow').addEventListener('click', () => {
+                tr.remove();
+                recalcTotals();
+            });
+            recalcTotals();
+        }
 
-  document.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
-    tr.addEventListener('input', (e)=>{
-      if(e.target.matches('.item-qty, .item-unit, .item-taxrate')) recalcTotals();
-    });
-    tr.querySelector('.delRow').addEventListener('click', ()=>{ tr.remove(); recalcTotals(); });
-  });
+        document.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
+            tr.addEventListener('input', (e) => {
+                if (e.target.matches('.item-qty, .item-unit, .item-taxrate')) recalcTotals();
+            });
+            tr.querySelector('.delRow').addEventListener('click', () => {
+                tr.remove();
+                recalcTotals();
+            });
+        });
 
-  addBtn.addEventListener('click', ()=> addRow());
-  recalcTotals();
+        addBtn.addEventListener('click', () => addRow());
+        recalcTotals();
 
-  // その他入金 UI
-  function addOtherPaymentRow(data={}){
-    const index = otherTbody.children.length;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
+        // その他入金 UI
+        function addOtherPaymentRow(data = {}) {
+            const index = otherTbody.children.length;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
       <td><input type="number" class="form-control form-control-sm" name="other_payments[${index}][row_no]" value="${index+1}"></td>
       <td><input type="date" class="form-control form-control-sm" name="other_payments[${index}][item_date]" value="${data.item_date||''}"></td>
       <td>
@@ -316,13 +337,166 @@ document.addEventListener('DOMContentLoaded', () => {
       <td><input type="text" class="form-control form-control-sm" name="other_payments[${index}][notes]" value="${data.notes||''}" placeholder="摘要"></td>
       <td><button type="button" class="btn btn-sm btn-outline-danger delRow">×</button></td>
     `;
-    otherTbody.appendChild(tr);
-    tr.querySelector('.delRow').addEventListener('click', ()=>{ tr.remove(); });
-  }
+            otherTbody.appendChild(tr);
+            tr.querySelector('.delRow').addEventListener('click', () => {
+                tr.remove();
+            });
+        }
 
-  if(addOtherBtn){ addOtherBtn.addEventListener('click', ()=> addOtherPaymentRow()); }
-});
+        if (addOtherBtn) {
+            addOtherBtn.addEventListener('click', () => addOtherPaymentRow());
+        }
+
+        // 顧客コード検索（正規化して一致）
+        const codeInput = document.getElementById('customer_code_input');
+        const codeBtn = document.getElementById('customer_code_search_btn');
+        const customerIdHidden = document.getElementById('customer_id');
+        const infoEl = document.getElementById('customer_info_display');
+
+        function toHalfWidthDigits(str) {
+            return (str || '').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 65248));
+        }
+
+        function normalizeCode(str) {
+            const half = toHalfWidthDigits(String(str || ''));
+            return half.replace(/[^0-9A-Za-z]/g, '').toUpperCase().replace(/^0+/, '');
+        }
+
+        function findCustomerByCode(input) {
+            const target = normalizeCode(input);
+            if (!target) return null;
+            let found = customerList.find(c => normalizeCode(c.code) === target);
+            if (!found) {
+                found = customerList.find(c => normalizeCode(c.code).endsWith(target) || target.endsWith(normalizeCode(c.code)));
+            }
+            return found || null;
+        }
+
+        function renderCustomerInfo(cust) {
+            if (!infoEl) return;
+            infoEl.textContent = cust ? `${cust.name} (${cust.code})` : '未選択';
+        }
+
+        function setCustomer(cust) {
+            if (cust) {
+                customerIdHidden.value = cust.id;
+                renderCustomerInfo(cust);
+            } else {
+                customerIdHidden.value = '';
+                renderCustomerInfo(null);
+            }
+        }
+
+        function performLookup() {
+            const value = codeInput ? codeInput.value : '';
+            const cust = findCustomerByCode(value);
+            if (cust) {
+                setCustomer(cust);
+            } else {
+                alert('該当の顧客コードが見つかりません');
+                setCustomer(null);
+            }
+        }
+        if (codeBtn) {
+            codeBtn.addEventListener('click', performLookup);
+        }
+        if (codeInput) {
+            codeInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    performLookup();
+                }
+            });
+        }
+        // 初期表示（既存の customer_id があれば表示）
+        (function initFromHidden() {
+            const currentId = customerIdHidden.value;
+            if (currentId) {
+                const cust = customerList.find(c => String(c.id) === String(currentId));
+                renderCustomerInfo(cust || null);
+            }
+        })();
+        // 顧客コード検索（正規化して一致）
+        const custCodeInput = document.getElementById('customer_code_input');
+        const custCodeBtn = document.getElementById('customer_code_search_btn');
+        const custIdHidden = document.getElementById('customer_id');
+        const custInfoEl = document.getElementById('customer_info_display');
+
+        function toHalfWidthDigits(str) {
+            return (str || '').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 65248));
+        }
+
+        function normalizeCode(str) {
+            const half = toHalfWidthDigits(String(str || ''));
+            return half.replace(/[^0-9A-Za-z]/g, '').toUpperCase().replace(/^0+/, '');
+        }
+
+        function findCustomerByCode(input) {
+            const target = normalizeCode(input);
+            if (!target) return null;
+            let found = customerList.find(c => normalizeCode(c.code) === target);
+            if (!found) {
+                found = customerList.find(c => normalizeCode(c.code).endsWith(target) || target.endsWith(normalizeCode(c.code)));
+            }
+            return found || null;
+        }
+
+        function renderCustomerInfo(cust) {
+            if (!custInfoEl) return;
+            custInfoEl.textContent = cust ? `${cust.name} (${cust.code})` : '未選択';
+        }
+
+        function setCustomer(cust) {
+            if (cust) {
+                custIdHidden.value = cust.id;
+                renderCustomerInfo(cust);
+            } else {
+                custIdHidden.value = '';
+                renderCustomerInfo(null);
+            }
+        }
+
+        function performCustLookup() {
+            const value = custCodeInput ? custCodeInput.value : '';
+            const local = findCustomerByCode(value);
+            if (local) {
+                setCustomer(local);
+                return;
+            }
+            fetch(`{{ route('api.customers.by-code') }}?code=${encodeURIComponent(value)}`, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.found && data.customer) {
+                        setCustomer(data.customer);
+                    } else {
+                        alert('該当の顧客コードが見つかりません');
+                        setCustomer(null);
+                    }
+                })
+                .catch(() => alert('検索に失敗しました'));
+        }
+        if (custCodeBtn) {
+            custCodeBtn.addEventListener('click', performCustLookup);
+        }
+        if (custCodeInput) {
+            custCodeInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    performCustLookup();
+                }
+            });
+        }
+        (function initFromHidden() {
+            const currentId = custIdHidden.value;
+            if (currentId) {
+                const cust = customerList.find(c => String(c.id) === String(currentId));
+                renderCustomerInfo(cust || null);
+            }
+        })();
+    });
 </script>
 @endsection
-
-

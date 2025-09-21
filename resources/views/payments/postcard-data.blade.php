@@ -21,7 +21,7 @@
                         </a></li>
                     </ul>
                 </div>
-                <a href="{{ route('postcards.print.pdf') }}?month={{ $currentMonth }}&year={{ $currentYear }}" class="btn btn-danger">
+                <a href="{{ route('postcards.print.pdf') }}?month={{ $currentMonth }}&year={{ $currentYear }}&offset={{ $offset ?? request('offset', 0) }}&limit={{ $limit ?? 20 }}" class="btn btn-danger">
                     <i class="fas fa-print me-1"></i> 印刷用PDF
                 </a>
             </div>
@@ -55,8 +55,8 @@
                             <tr>
                                 <td>{{ $data['顧客']->user_name ?? $data['顧客']->name ?? '' }}</td>
                                 <td>{{ $data['顧客']->customer_number ?? '' }}</td>
-                                <td>{{ $data['顧客']->address ?? '' }}</td>
-                                <td>{{ $data['顧客']->postal_code ?? '' }}</td>
+                                <td>{{ trim(($data['顧客']->billing_prefecture ?? '') . ' ' . ($data['顧客']->billing_city ?? '') . ' ' . ($data['顧客']->billing_street ?? '') . ' ' . ($data['顧客']->billing_building ?? '')) }}</td>
+                                <td>{{ $data['顧客']->billing_postal_code ?? '' }}</td>
                                 <td>{{ $data['当月名'] ?? '' }}</td>
                                 <td>{{ isset($data['当月入金']) && $data['当月入金'] ? number_format($data['当月入金']->amount, 2) : '0.00' }}</td>
                                 <td>{{ (isset($data['当月入金']) && $data['当月入金'] && $data['当月入金']->payment_date) ? $data['当月入金']->payment_date->format('Y-m-d') : '-' }}</td>
@@ -76,6 +76,22 @@
                     </tbody>
                 </table>
             </div>
+        </div>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="text-muted small">バッチ: offset={{ $offset ?? request('offset', 0) }}, limit={{ $limit ?? 20 }} / 全 {{ $total ?? count($postcardData) }} 件</div>
+        <div class="btn-group">
+            @php 
+                $o = isset($offset) ? (int)$offset : (int)request('offset', 0); 
+                $l = isset($limit) ? (int)$limit : (int)request('limit', 20);
+                $t = isset($total) ? (int)$total : (int)count($postcardData);
+                $prev = max(0, $o - $l); 
+                $next = $o + $l; 
+                $hasPrev = $o > 0; 
+                $hasNext = $next < $t; 
+            @endphp
+            <a class="btn btn-outline-secondary {{ $hasPrev ? '' : 'disabled' }}" href="{{ $hasPrev ? route('payments.postcard-data') . "?month={$currentMonth}&year={$currentYear}&offset={$prev}&limit={$l}" : '#' }}">前へ</a>
+            <a class="btn btn-outline-primary {{ $hasNext ? '' : 'disabled' }}" href="{{ $hasNext ? route('payments.postcard-data') . "?month={$currentMonth}&year={$currentYear}&offset={$next}&limit={$l}" : '#' }}">次へ</a>
         </div>
     </div>
 @endsection

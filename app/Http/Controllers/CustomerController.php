@@ -14,6 +14,38 @@ use Illuminate\Support\Facades\DB;
 
 class CustomerController extends Controller
 {
+    public function findByCode(Request $request)
+    {
+        $codeRaw = (string)$request->get('code', '');
+        $code = preg_replace('/[^0-9A-Za-z]/', '', mb_strtoupper(mb_convert_kana($codeRaw, 'as')));
+        if ($code === '') {
+            return response()->json(['error' => 'code_required'], 400);
+        }
+
+        $query = Customer::query();
+        // Try exact match by customer_number first (common for codes), then customer_code
+        $customer = $query->where('customer_number', $code)->first();
+        if (!$customer) {
+            $customer = Customer::where('customer_code', $code)->first();
+        }
+        if (!$customer) {
+            // Lenient match: trailing match to allow leading zeros difference
+            $customer = Customer::where('customer_number', 'like', "%{$code}")
+                ->orWhere('customer_code', 'like', "%{$code}")
+                ->first();
+        }
+        if (!$customer) {
+            return response()->json(['found' => false]);
+        }
+        return response()->json([
+            'found' => true,
+            'customer' => [
+                'id' => $customer->id,
+                'code' => $customer->customer_number ?? $customer->customer_code,
+                'name' => $customer->user_name ?? $customer->name,
+            ]
+        ]);
+    }
     public function index(Request $request)
     {
         $query = Customer::query();
@@ -23,14 +55,14 @@ class CustomerController extends Controller
             $search = $request->get('search');
             $query->where(function ($q) use ($search) {
                 $q->where('user_name', 'like', "%{$search}%")
-                  ->orWhere('user_kana_name', 'like', "%{$search}%")
-                  ->orWhere('customer_number', 'like', "%{$search}%")
-                  ->orWhere('customer_code', 'like', "%{$search}%")
-                  ->orWhere('account_number', 'like', "%{$search}%");
+                    ->orWhere('user_kana_name', 'like', "%{$search}%")
+                    ->orWhere('customer_number', 'like', "%{$search}%")
+                    ->orWhere('customer_code', 'like', "%{$search}%")
+                    ->orWhere('account_number', 'like', "%{$search}%");
             });
         }
 
-       
+
         if ($request->filled('customer_code')) {
             $query->where('customer_code', 'like', "%{$request->get('customer_code')}%");
         }
@@ -47,7 +79,10 @@ class CustomerController extends Controller
             $query->where('branch_name', 'like', "%{$request->get('branch_name')}%");
         }
 
-        $customers = $query->orderBy('user_name', 'asc')->paginate(20);
+        $customers = $query
+            ->orderBy('user_name', 'asc')
+            ->paginate(20)
+            ->withQueryString();
         return view('customers.index', compact('customers'));
     }
 
@@ -57,7 +92,7 @@ class CustomerController extends Controller
     }
 
     public function showImportForm()
-    {  
+    {
         Log::info("Hello!");
         return view('customers.import');
     }
@@ -89,20 +124,21 @@ class CustomerController extends Controller
             'billing_street' => 'nullable|string|max:200',
             'billing_building' => 'nullable|string|max:200',
             'billing_difference' => 'nullable|numeric|between:-999999999.99,999999999.99',
+            'note' => 'nullable|string|max:2000',
+            'memo' => 'nullable|string|max:2000',
         ]);
-        
+
         try {
             Customer::create($validated);
-            
+
             return redirect()->route('customers.index')
                 ->with('success', '顧客情報が正常に追加されました。');
-                
         } catch (\Exception $e) {
             Log::error('Customer creation failed', [
                 'error' => $e->getMessage(),
                 'data' => $validated
             ]);
-            
+
             return back()
                 ->withInput()
                 ->with('error', '顧客情報の追加に失敗しました。再度お試しください。');
@@ -142,26 +178,27 @@ class CustomerController extends Controller
             'account_number' => 'nullable|string|max:50',
             'customer_number' => 'required|string|max:50|unique:customers,customer_number,' . $customer->id,
             'billing_postal_code' => 'nullable|string|max:10',
-                        'billing_prefecture' => 'nullable|string|max:50',
+            'billing_prefecture' => 'nullable|string|max:50',
             'billing_city' => 'nullable|string|max:100',
             'billing_street' => 'nullable|string|max:200',
             'billing_building' => 'nullable|string|max:200',
             'billing_difference' => 'nullable|numeric|between:-999999999.99,999999999.99',
+            'note' => 'nullable|string|max:2000',
+            'memo' => 'nullable|string|max:2000',
         ]);
-        
+
         try {
             $customer->update($validated);
-            
+
             return redirect()->route('customers.index')
                 ->with('success', '顧客情報が正常に更新されました。');
-                
         } catch (\Exception $e) {
             Log::error('Customer update failed', [
                 'customer_id' => $customer->id,
                 'error' => $e->getMessage(),
                 'data' => $validated
             ]);
-            
+
             return back()
                 ->withInput()
                 ->with('error', '顧客情報の更新に失敗しました。再度お試しください。');
@@ -183,10 +220,10 @@ class CustomerController extends Controller
             $search = $request->get('search');
             $query->where(function ($q) use ($search) {
                 $q->where('user_name', 'like', "%{$search}%")
-                  ->orWhere('user_kana_name', 'like', "%{$search}%")
-                  ->orWhere('customer_number', 'like', "%{$search}%")
-                  ->orWhere('customer_code', 'like', "%{$search}%")
-                  ->orWhere('account_number', 'like', "%{$search}%");
+                    ->orWhere('user_kana_name', 'like', "%{$search}%")
+                    ->orWhere('customer_number', 'like', "%{$search}%")
+                    ->orWhere('customer_code', 'like', "%{$search}%")
+                    ->orWhere('account_number', 'like', "%{$search}%");
             });
         }
 
@@ -213,9 +250,9 @@ class CustomerController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $callback = function() use ($customers) {
+        $callback = function () use ($customers) {
             $file = fopen('php://output', 'w');
-            
+
             // CSV header with all 22 parameters
             fputcsv($file, [
                 '顧客コード',
@@ -283,10 +320,10 @@ class CustomerController extends Controller
             $search = $request->get('search');
             $query->where(function ($q) use ($search) {
                 $q->where('user_name', 'like', "%{$search}%")
-                  ->orWhere('user_kana_name', 'like', "%{$search}%")
-                  ->orWhere('customer_number', 'like', "%{$search}%")
-                  ->orWhere('customer_code', 'like', "%{$search}%")
-                  ->orWhere('account_number', 'like', "%{$search}%");
+                    ->orWhere('user_kana_name', 'like', "%{$search}%")
+                    ->orWhere('customer_number', 'like', "%{$search}%")
+                    ->orWhere('customer_code', 'like', "%{$search}%")
+                    ->orWhere('account_number', 'like', "%{$search}%");
             });
         }
 
@@ -395,7 +432,6 @@ class CustomerController extends Controller
 
             return redirect()->route('customers.index')
                 ->with('success', '顧客データのインポートが完了しました。');
-
         } catch (\Exception $e) {
             Log::error('Customer import error: ' . $e->getMessage());
             return redirect()->back()
@@ -407,13 +443,13 @@ class CustomerController extends Controller
     {
         $handle = fopen($file->getPathname(), 'r');
         $headers = fgetcsv($handle); // Skip header row
-        
+
         while (($data = fgetcsv($handle)) !== false) {
             if (count($data) >= 22) {
                 $this->createCustomerFromArray($data);
             }
         }
-        
+
         fclose($handle);
     }
 
@@ -422,10 +458,10 @@ class CustomerController extends Controller
         $spreadsheet = IOFactory::load($file->getPathname());
         $worksheet = $spreadsheet->getActiveSheet();
         $rows = $worksheet->toArray();
-        
+
         // Skip header row
         array_shift($rows);
-        
+
         foreach ($rows as $row) {
             if (count($row) >= 22) {
                 $this->createCustomerFromArray($row);
@@ -475,7 +511,7 @@ class CustomerController extends Controller
 
         $bankCode = $request->get('bank_code');
         $cacheKey = "bank_name_{$bankCode}";
-        
+
         if (Cache::has($cacheKey)) {
             return response()->json([
                 'bank_name' => Cache::get($cacheKey),
@@ -499,7 +535,7 @@ class CustomerController extends Controller
         // If not in fallback database, try API (but only if we haven't exceeded limits)
         try {
             $bankName = $this->callBankAPI($bankCode);
-            
+
             if ($bankName) {
                 Cache::put($cacheKey, $bankName, now()->addDays(7));
                 return response()->json([
@@ -515,10 +551,9 @@ class CustomerController extends Controller
                 'cached' => false,
                 'source' => 'not_found'
             ], 404);
-
         } catch (\Exception $e) {
             Log::warning("Bank API call failed for code: {$bankCode}", ['error' => $e->getMessage()]);
-            
+
             // Try fallback bank list when API fails or is rate limited
             $fallbackBankName = $this->getFallbackBankName($bankCode);
             if ($fallbackBankName) {
@@ -530,7 +565,7 @@ class CustomerController extends Controller
                     'note' => 'API rate limited, using offline database'
                 ]);
             }
-            
+
             return response()->json([
                 'bank_name' => null,
                 'error' => 'API service unavailable',
@@ -589,11 +624,11 @@ class CustomerController extends Controller
 
         try {
             $branchName = $this->callBranchAPI($bankCode, $branchCode);
-            
+
             if ($branchName) {
                 // Cache for 7 days
                 Cache::put($cacheKey, $branchName, now()->addDays(7));
-                
+
                 return response()->json([
                     'branch_name' => $branchName,
                     'cached' => false,
@@ -607,10 +642,9 @@ class CustomerController extends Controller
                 'cached' => false,
                 'source' => 'api'
             ], 404);
-                
         } catch (\Exception $e) {
             Log::warning("Branch API call failed for bank: {$bankCode}, branch: {$branchCode}", ['error' => $e->getMessage()]);
-            
+
             return response()->json([
                 'branch_name' => null,
                 'error' => 'API service unavailable',
@@ -635,10 +669,10 @@ class CustomerController extends Controller
             $endpoint = str_replace('{code}', $code, $config['endpoints']['banks']);
             $url = $config['base_url'] . $endpoint . '?apiKey=' . $config['api_key'];
             $response = Http::timeout($config['timeout'])->get($url);
-            
+
             if ($response->successful()) {
                 $data = $response->json();
-                
+
                 // API returns 'name' field
                 if (isset($data['name'])) {
                     return $data['name'];
@@ -665,7 +699,7 @@ class CustomerController extends Controller
     private function callBranchAPI($bankCode, $branchCode)
     {
         $config = config('banking.bankcode_jp');
-        
+
         if (!$config['enabled']) {
             return null;
         }
@@ -675,10 +709,10 @@ class CustomerController extends Controller
             $url = $config['base_url'] . $endpoint . '?apiKey=' . $config['api_key'];
 
             $response = Http::timeout($config['timeout'])->get($url);
-            
+
             if ($response->successful()) {
                 $data = $response->json();
-                
+
                 // API returns an array, get the first item's name
                 if (is_array($data) && count($data) > 0 && isset($data[0]['name'])) {
                     return $data[0]['name'];
@@ -691,33 +725,33 @@ class CustomerController extends Controller
         return null;
     }
 
-    
+
     private function getFallbackBankName($bankCode)
     {
         $fallbackBanks = config('banks.fallback_banks', []);
         return $fallbackBanks[$bankCode] ?? null;
     }
 
-    
+
     private function getFallbackBranchName($bankCode, $branchCode)
     {
         $fallbackBranches = config('banks.fallback_branches', []);
-        
+
         if (!isset($fallbackBranches[$bankCode])) {
             return null;
         }
-        
+
         return $fallbackBranches[$bankCode][$branchCode] ?? null;
     }
 
-  
+
     public function showImportXlsx()
     {
-     
+
         return view('customers.import-xlsx');
     }
 
- 
+
     public function importXlsx(Request $request)
     {
 
@@ -731,7 +765,7 @@ class CustomerController extends Controller
             $worksheet = $spreadsheet->getActiveSheet();
             $rows = $worksheet->toArray();
 
-     
+
             array_shift($rows);
 
             $results = [
@@ -742,10 +776,10 @@ class CustomerController extends Controller
                 'errors' => []
             ];
 
-            \DB::beginTransaction();
+            DB::beginTransaction();
 
             foreach ($rows as $index => $row) {
-                $rowNumber = $index + 2; 
+                $rowNumber = $index + 2;
                 $results['total_processed']++;
 
                 Log::info('Processing row', [
@@ -768,7 +802,6 @@ class CustomerController extends Controller
                     ]);
 
                     $results['success_count']++;
-
                 } catch (\Exception $e) {
                     $results['error_count']++;
                     $results['errors'][] = [
@@ -778,27 +811,26 @@ class CustomerController extends Controller
                 }
             }
 
-            \DB::commit();
-            
+            DB::commit();
+
             Log::info('Import completed successfully', $results);
             return response()->json($results);
-
         } catch (\Exception $e) {
-           
-            \DB::rollback();
-            
+
+            DB::rollBack();
+
             Log::error('XLSX import failed', ['error' => $e->getMessage()]);
-            
+
             return response()->json([
                 'error' => 'インポート処理中にエラーが発生しました: ' . $e->getMessage()
             ], 500);
         }
     }
 
-   
+
     private function parseCustomerRowFromXlsx($row)
     {
-        
+
         $customerData = [
             'customer_code' => trim($row[0] ?? ''),           // 顧客コード
             'user_kana_name' => trim($row[1] ?? ''),          // 賃借者カナ氏名 
@@ -841,7 +873,7 @@ class CustomerController extends Controller
             }
         }
 
-      
+
         if (!empty($customerData['bank_number']) && !empty($customerData['branch_number']) && empty($customerData['branch_name'])) {
             $branchName = $this->getFallbackBranchName($customerData['bank_number'], $customerData['branch_number']);
             if ($branchName) {
@@ -909,10 +941,7 @@ class CustomerController extends Controller
         if (empty($value)) {
             return 0.00;
         }
-        
-        // Remove any non-numeric characters except decimal point and minus sign
         $cleaned = preg_replace('/[^\d.-]/', '', $value);
-        
         return is_numeric($cleaned) ? (float)$cleaned : 0.00;
     }
 

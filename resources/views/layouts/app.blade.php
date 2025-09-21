@@ -8,14 +8,17 @@
     <title>顧客管理システム | Customer Management System</title>
     <meta name="description" content="Modern Customer Management System with advanced analytics and beautiful UI">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💼</text></svg>">
-    
+
     <!-- Modern CSS Framework & Fonts -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
     <noscript>
         <style>
-            [data-aos] { opacity: 1 !important; transform: none !important; }
+            [data-aos] {
+                opacity: 1 !important;
+                transform: none !important;
+            }
         </style>
     </noscript>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -30,7 +33,7 @@
             --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
             --warning-gradient: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
             --danger-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-            
+
             /* Dark Theme */
             --bg-primary: #0a0e27;
             --bg-secondary: #1a1f3a;
@@ -41,14 +44,14 @@
             --text-primary: #ffffff;
             --text-secondary: rgba(255, 255, 255, 0.7);
             --text-muted: rgba(255, 255, 255, 0.5);
-            
+
             /* Neon Colors */
             --neon-blue: #00d4ff;
             --neon-purple: #a855f7;
             --neon-pink: #ec4899;
             --neon-green: #10b981;
             --neon-orange: #f59e0b;
-            
+
             /* Shadows & Effects */
             --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
             --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -84,7 +87,8 @@
             box-sizing: border-box;
         }
 
-        html, body {
+        html,
+        body {
             font-family: 'Inter', 'Noto Sans JP', system-ui, -apple-system, sans-serif;
             color: var(--text-primary);
             background: var(--bg-primary);
@@ -110,7 +114,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: 
+            background:
                 radial-gradient(circle at 20% 20%, rgba(0, 212, 255, 0.1) 0%, transparent 50%),
                 radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.1) 0%, transparent 50%),
                 radial-gradient(circle at 40% 60%, rgba(236, 72, 153, 0.08) 0%, transparent 50%);
@@ -124,22 +128,42 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: 
+            background:
                 linear-gradient(45deg, transparent 30%, rgba(0, 212, 255, 0.02) 50%, transparent 70%),
                 linear-gradient(-45deg, transparent 30%, rgba(168, 85, 247, 0.02) 50%, transparent 70%);
             animation: backgroundShift 15s ease-in-out infinite reverse;
         }
 
         @keyframes backgroundFloat {
-            0%, 100% { transform: translate(0, 0) rotate(0deg); }
-            25% { transform: translate(2%, 1%) rotate(1deg); }
-            50% { transform: translate(-1%, 2%) rotate(-1deg); }
-            75% { transform: translate(1%, -1%) rotate(0.5deg); }
+
+            0%,
+            100% {
+                transform: translate(0, 0) rotate(0deg);
+            }
+
+            25% {
+                transform: translate(2%, 1%) rotate(1deg);
+            }
+
+            50% {
+                transform: translate(-1%, 2%) rotate(-1deg);
+            }
+
+            75% {
+                transform: translate(1%, -1%) rotate(0.5deg);
+            }
         }
 
         @keyframes backgroundShift {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.8; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.8;
+            }
         }
 
         /* Revolutionary Sidebar */
@@ -482,6 +506,7 @@
                 transform: translateX(100%);
                 opacity: 0;
             }
+
             to {
                 transform: translateX(0);
                 opacity: 1;
@@ -682,53 +707,53 @@
         <div class="content-wrapper">
             <!-- Modern Alert Messages -->
             @if (session('success'))
-                <div class="alert-modern alert-success-modern" data-aos="slide-left" data-aos-duration="500">
-                    <div class="alert-icon">
-                        <i class="fas fa-check-circle"></i>
-                    </div>
-                    <div class="alert-content">
-                        <div class="alert-title">成功</div>
-                        <div class="alert-message">{{ session('success') }}</div>
-                    </div>
-                    <button type="button" class="alert-close" onclick="this.parentElement.remove()">
-                        <i class="fas fa-times"></i>
-                    </button>
+            <div class="alert-modern alert-success-modern" data-aos="slide-left" data-aos-duration="500">
+                <div class="alert-icon">
+                    <i class="fas fa-check-circle"></i>
                 </div>
+                <div class="alert-content">
+                    <div class="alert-title">成功</div>
+                    <div class="alert-message">{{ session('success') }}</div>
+                </div>
+                <button type="button" class="alert-close" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
             @endif
 
             @if (session('warning'))
-                <div class="alert-modern alert-warning-modern" data-aos="slide-left" data-aos-duration="500" data-aos-delay="100">
-                    <div class="alert-icon">
-                        <i class="fas fa-exclamation-triangle"></i>
-                    </div>
-                    <div class="alert-content">
-                        <div class="alert-title">警告</div>
-                        <div class="alert-message">{{ session('warning') }}</div>
-                    </div>
-                    <button type="button" class="alert-close" onclick="this.parentElement.remove()">
-                        <i class="fas fa-times"></i>
-                    </button>
-                        </div>
-                    @endif
-
-                    @if (session('error'))
-                <div class="alert-modern alert-danger-modern" data-aos="slide-left" data-aos-duration="500" data-aos-delay="200">
-                    <div class="alert-icon">
-                        <i class="fas fa-times-circle"></i>
-                    </div>
-                    <div class="alert-content">
-                        <div class="alert-title">エラー</div>
-                        <div class="alert-message">{{ session('error') }}</div>
-                    </div>
-                    <button type="button" class="alert-close" onclick="this.parentElement.remove()">
-                        <i class="fas fa-times"></i>
-                    </button>
-                        </div>
-                    @endif
-
-                    @yield('content')
+            <div class="alert-modern alert-warning-modern" data-aos="slide-left" data-aos-duration="500" data-aos-delay="100">
+                <div class="alert-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
                 </div>
-            </main>
+                <div class="alert-content">
+                    <div class="alert-title">警告</div>
+                    <div class="alert-message">{{ session('warning') }}</div>
+                </div>
+                <button type="button" class="alert-close" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            @endif
+
+            @if (session('error'))
+            <div class="alert-modern alert-danger-modern" data-aos="slide-left" data-aos-duration="500" data-aos-delay="200">
+                <div class="alert-icon">
+                    <i class="fas fa-times-circle"></i>
+                </div>
+                <div class="alert-content">
+                    <div class="alert-title">エラー</div>
+                    <div class="alert-message">{{ session('error') }}</div>
+                </div>
+                <button type="button" class="alert-close" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            @endif
+
+            @yield('content')
+        </div>
+    </main>
 
     <!-- Modern Theme Toggle -->
     <button id="themeToggle" class="theme-toggle-modern" title="テーマ切替">
@@ -750,6 +775,7 @@
             initThemeToggle();
             initMobileMenu();
             initModernEffects();
+            initDeleteConfirm();
         }
 
         // Enhanced AOS Animation System
@@ -777,7 +803,7 @@
         function initThemeToggle() {
             const root = document.documentElement;
             const toggleBtn = document.getElementById('themeToggle');
-            
+
             // Load saved theme or default to dark
             const savedTheme = localStorage.getItem('cms-theme') || 'dark';
             if (savedTheme === 'light') {
@@ -785,35 +811,35 @@
             } else {
                 root.removeAttribute('data-theme');
             }
-            
+
             updateThemeIcon();
-            
+
             toggleBtn.addEventListener('click', function() {
                 const currentTheme = root.getAttribute('data-theme');
                 const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-                
+
                 // Add transition effect
                 document.body.style.transition = 'all 0.3s ease';
-                
+
                 if (newTheme === 'light') {
                     root.setAttribute('data-theme', 'light');
                 } else {
                     root.removeAttribute('data-theme');
                 }
-                
+
                 localStorage.setItem('cms-theme', newTheme);
                 updateThemeIcon();
-                
+
                 // Remove transition after animation
                 setTimeout(() => {
                     document.body.style.transition = '';
                 }, 300);
             });
-            
+
             function updateThemeIcon() {
                 const currentTheme = root.getAttribute('data-theme');
                 const icon = toggleBtn.querySelector('i');
-                
+
                 if (currentTheme === 'light') {
                     icon.className = 'fas fa-moon';
                     toggleBtn.title = 'ダークモードに切替';
@@ -829,7 +855,7 @@
             const mobileToggle = document.getElementById('mobileMenuToggle');
             const sidebar = document.getElementById('modernSidebar');
             const overlay = document.createElement('div');
-            
+
             overlay.className = 'mobile-overlay';
             overlay.style.cssText = `
                 position: fixed;
@@ -844,20 +870,20 @@
                 transition: all 0.3s ease;
             `;
             document.body.appendChild(overlay);
-            
+
             if (mobileToggle && sidebar) {
                 mobileToggle.addEventListener('click', function() {
                     const isOpen = sidebar.classList.contains('show');
-                    
+
                     if (isOpen) {
                         closeMobileMenu();
                     } else {
                         openMobileMenu();
                     }
                 });
-                
+
                 overlay.addEventListener('click', closeMobileMenu);
-                
+
                 // Close on escape key
                 document.addEventListener('keydown', function(e) {
                     if (e.key === 'Escape' && sidebar.classList.contains('show')) {
@@ -865,23 +891,23 @@
                     }
                 });
             }
-            
+
             function openMobileMenu() {
                 sidebar.classList.add('show');
                 overlay.style.opacity = '1';
                 overlay.style.visibility = 'visible';
                 document.body.style.overflow = 'hidden';
-                
+
                 const icon = mobileToggle.querySelector('i');
                 icon.className = 'fas fa-times';
             }
-            
+
             function closeMobileMenu() {
                 sidebar.classList.remove('show');
                 overlay.style.opacity = '0';
                 overlay.style.visibility = 'hidden';
                 document.body.style.overflow = '';
-                
+
                 const icon = mobileToggle.querySelector('i');
                 icon.className = 'fas fa-bars';
             }
@@ -895,12 +921,12 @@
                 card.addEventListener('mouseenter', function() {
                     this.style.transform = 'translateY(-4px) scale(1.02)';
                 });
-                
+
                 card.addEventListener('mouseleave', function() {
                     this.style.transform = 'translateY(0) scale(1)';
                 });
             });
-            
+
             // Auto-dismiss alerts after 5 seconds
             const alerts = document.querySelectorAll('.alert-modern');
             alerts.forEach(alert => {
@@ -914,7 +940,7 @@
                     }
                 }, 5000);
             });
-            
+
             // Add ripple effect to buttons
             const buttons = document.querySelectorAll('.btn-modern, .nav-link-modern');
             buttons.forEach(button => {
@@ -924,7 +950,7 @@
                     const size = Math.max(rect.width, rect.height);
                     const x = e.clientX - rect.left - size / 2;
                     const y = e.clientY - rect.top - size / 2;
-                    
+
                     ripple.style.cssText = `
                         position: absolute;
                         border-radius: 50%;
@@ -937,17 +963,17 @@
                         transform: scale(0);
                         animation: ripple 0.6s ease-out;
                     `;
-                    
+
                     this.style.position = 'relative';
                     this.style.overflow = 'hidden';
                     this.appendChild(ripple);
-                    
+
                     setTimeout(() => {
                         ripple.remove();
                     }, 600);
                 });
             });
-            
+
             // Add CSS for ripple animation
             if (!document.getElementById('ripple-styles')) {
                 const style = document.createElement('style');
@@ -962,6 +988,35 @@
                 `;
                 document.head.appendChild(style);
             }
+        }
+
+        // Global DELETE confirmation handler
+        function initDeleteConfirm() {
+            const deleteForms = Array.from(document.querySelectorAll('form'))
+                .filter(form => form.querySelector('input[name="_method"][value="DELETE"]'));
+
+            deleteForms.forEach(form => {
+                if (form.dataset.confirmBound === 'true') return;
+                if (form.hasAttribute('data-no-confirm')) return;
+
+                const onsubmitAttr = form.getAttribute('onsubmit') || '';
+                if (onsubmitAttr.includes('confirm(')) {
+                    form.setAttribute('data-original-onsubmit', onsubmitAttr);
+                    form.removeAttribute('onsubmit');
+                }
+
+                form.addEventListener('submit', function(e) {
+                    const message = form.getAttribute('data-confirm-message') || 'Are you sure you want to delete?';
+                    if (!window.confirm(message)) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                    }
+                }, {
+                    capture: true
+                });
+
+                form.dataset.confirmBound = 'true';
+            });
         }
 
         // Smooth scrolling for anchor links

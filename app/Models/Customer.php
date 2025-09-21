@@ -36,6 +36,8 @@ class Customer extends Model
         'billing_street',          // 請求先番地
         'billing_building',        // 請求先建物
         'billing_difference',      // 請求先差額
+        'note',                    // 備考
+        'memo',                    // メモ
     ];
 
     protected $casts = [
@@ -79,7 +81,7 @@ class Customer extends Model
             return Cache::get($cacheKey);
         }
         try {
-            $bankName = $this->callBankAPI($code);            
+            $bankName = $this->callBankAPI($code);
             if ($bankName) {
                 Cache::put($cacheKey, $bankName, now()->addDays(7));
                 return $bankName;
@@ -95,7 +97,7 @@ class Customer extends Model
     private function getBranchNameByAPI($code)
     {
         $cacheKey = "branch_name_{$code}";
-        
+
         // Check cache first
         if (Cache::has($cacheKey)) {
             return Cache::get($cacheKey);
@@ -104,7 +106,7 @@ class Customer extends Model
         try {
             // Try multiple banking APIs for redundancy
             $branchName = $this->callBranchAPI($code);
-            
+
             if ($branchName) {
                 // Cache for 7 days
                 Cache::put($cacheKey, $branchName, now()->addDays(7));
@@ -117,11 +119,11 @@ class Customer extends Model
         return null;
     }
 
-  
+
     private function callBankAPI($code)
     {
         $config = config('banking.bankcode_jp');
-        
+
         if (!$config['enabled']) {
             return null;
         }
@@ -131,10 +133,10 @@ class Customer extends Model
             $url = $config['base_url'] . $endpoint . '?apiKey=' . $config['api_key'];
 
             $response = Http::timeout($config['timeout'])->get($url);
-            
+
             if ($response->successful()) {
                 $data = $response->json();
-                
+
                 // API returns 'name' field
                 if (isset($data['name'])) {
                     return $data['name'];
@@ -151,21 +153,21 @@ class Customer extends Model
     private function callBranchAPI($branchCode)
     {
         $config = config('banking.bankcode_jp');
-        
+
         if (!$config['enabled'] || !$this->bank_number) {
             return null;
         }
 
         try {
-            
+
             $endpoint = str_replace(['{bankCode}', '{branchCode}'], [$this->bank_number, $branchCode], $config['endpoints']['branches']);
             $url = $config['base_url'] . $endpoint . '?apiKey=' . $config['api_key'];
 
             $response = Http::timeout($config['timeout'])->get($url);
-            
+
             if ($response->successful()) {
                 $data = $response->json();
-                
+
                 if (is_array($data) && count($data) > 0 && isset($data[0]['name'])) {
                     return $data[0]['name'];
                 }
@@ -175,5 +177,38 @@ class Customer extends Model
         }
 
         return null;
+    }
+
+    /**
+     * Mutator: normalize deposit_type to codes '1' (普通) or '2' (当座) when possible.
+     */
+    public function setDepositTypeAttribute($value)
+    {
+        $normalized = $value;
+        if ($value === 1 || $value === '1' || $value === '普通' || $value === '普通預金') {
+            $normalized = '1';
+        } elseif ($value === 2 || $value === '2' || $value === '当座' || $value === '当座預金') {
+            $normalized = '2';
+        }
+        $this->attributes['deposit_type'] = $normalized;
+    }
+
+    /**
+     * Accessor: get human-readable label for deposit_type.
+     */
+    public function getDepositTypeLabelAttribute(): ?string
+    {
+        $value = $this->attributes['deposit_type'] ?? null;
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if ($value === 1 || $value === '1') {
+            return '普通預金';
+        }
+        if ($value === 2 || $value === '2') {
+            return '当座預金';
+        }
+        // Fallback: if already stored as Japanese label or other string
+        return (string) $value;
     }
 }

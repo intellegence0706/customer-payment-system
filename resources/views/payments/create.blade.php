@@ -21,52 +21,55 @@
                 <div class="card-body">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label for="customer_id" class="form-label">顧客 <span class="text-danger">*</span></label>
-                            <select class="form-select @error('customer_id') is-invalid @enderror" id="customer_id" name="customer_id" required>
-                                <option value="">顧客を選択</option>
-                                @foreach($customers as $customer)
-                                    <option value="{{ $customer->id }}" {{ old('customer_id') == $customer->id ? 'selected' : '' }}>
-                                        {{ $customer->name }} ({{ $customer->customer_number }})
-                                    </option>
-                                @endforeach
-                            </select>
+                            <label for="customer_code_input" class="form-label">顧客コード <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="customer_code_input" placeholder="顧客コードを入力">
+                                <button type="button" class="btn btn-outline-secondary" id="customer_code_search_btn">検索</button>
+                            </div>
+                            <input type="hidden" name="customer_id" id="customer_id" value="{{ old('customer_id') }}">
+                            <div id="customer_info_display" class="form-text mt-1">未選択</div>
                             @error('customer_id')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
+                        </div>
+                        <div id="customerDataset" class="d-none">
+                            @foreach($customers as $c)
+                            <span class="cust" data-id="{{ $c->id }}" data-code="{{ $c->customer_number }}" data-name="{{ $c->name }}"></span>
+                            @endforeach
                         </div>
                         <div class="col-md-3">
                             <label for="payment_month" class="form-label">月 <span class="text-danger">*</span></label>
                             <input type="number" class="form-control @error('payment_month') is-invalid @enderror" id="payment_month" name="payment_month" min="1" max="12" value="{{ old('payment_month') }}" required>
                             @error('payment_month')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-3">
                             <label for="payment_year" class="form-label">年 <span class="text-danger">*</span></label>
                             <input type="number" class="form-control @error('payment_year') is-invalid @enderror" id="payment_year" name="payment_year" min="2020" value="{{ old('payment_year') }}" required>
                             @error('payment_year')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-6">
                             <label for="amount" class="form-label">金額 <span class="text-danger">*</span></label>
                             <input type="number" step="0.01" class="form-control @error('amount') is-invalid @enderror" id="amount" name="amount" value="{{ old('amount') }}" required>
                             @error('amount')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-6">
                             <label for="payment_date" class="form-label">入金日 <span class="text-danger">*</span></label>
                             <input type="date" class="form-control @error('payment_date') is-invalid @enderror" id="payment_date" name="payment_date" value="{{ old('payment_date') }}" required>
                             @error('payment_date')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-6">
                             <label for="receipt_number" class="form-label">領収書番号</label>
                             <input type="text" class="form-control @error('receipt_number') is-invalid @enderror" id="receipt_number" name="receipt_number" value="{{ old('receipt_number') }}">
                             @error('receipt_number')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-md-6">
@@ -77,14 +80,14 @@
                                 <option value="failed" {{ old('status') == 'failed' ? 'selected' : '' }}>失敗</option>
                             </select>
                             @error('status')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         <div class="col-12">
                             <label for="notes" class="form-label">備考</label>
                             <textarea class="form-control @error('notes') is-invalid @enderror" id="notes" name="notes" rows="2">{{ old('notes') }}</textarea>
                             @error('notes')
-                                <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                     </div>
@@ -256,7 +259,7 @@
                         </div>
                     </div>
                 </div>
-            </div>  
+            </div>
 
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -297,112 +300,205 @@
 
 @section('scripts')
 <style>
-/* Layout polish */
-.card { box-shadow: 0 3px 12px rgba(17,24,39,.06); border-radius: 12px; overflow: hidden; }
-.card-header { background: linear-gradient(90deg, #6c5ce7 0%, #a66cff 100%); color: #fff; }
-.card-header h5 { display: flex; align-items: center; gap: .5rem; margin: 0; }
-.card-header h5::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.85); }
+    /* Layout polish */
+    .card {
+        box-shadow: 0 3px 12px rgba(17, 24, 39, .06);
+        border-radius: 12px;
+        overflow: hidden;
+    }
 
-/* Tables */
-.table-sm thead th { position: sticky; top: 0; z-index: 1; background: #f8fafc !important; }
-.table-sm tbody tr:hover { background: #f9f9ff; }
-.table-sm input, .table-sm select { height: 34px; }
-.table-sm input[type="number"], .text-end { text-align: right; }
-.section-total { background: #fff; color: #6c5ce7; border: 1px solid #eae7ff; padding: .25rem .6rem; border-radius: 999px; font-weight: 700; box-shadow: 0 1px 4px rgba(108,92,231,.15); }
-.sticky-summary { position: sticky; bottom: 0; background: rgba(255,255,255,.95); backdrop-filter: blur(6px); padding-top: .75rem; border-top: 1px solid #ececf6; box-shadow: 0 -6px 20px rgba(0,0,0,.04); }
-.sticky-summary .input-group-text { background: #f3f0ff; color: #6c5ce7; font-weight: 600; }
-.btn-outline-primary { --bs-btn-color:#6c5ce7; --bs-btn-border-color:#6c5ce7; --bs-btn-hover-bg:#6c5ce7; --bs-btn-hover-border-color:#6c5ce7; }
-.btn-primary { background:#6c5ce7; border-color:#6c5ce7; }
+    .card-header {
+        background: linear-gradient(90deg, #6c5ce7 0%, #a66cff 100%);
+        color: #fff;
+    }
+
+    .card-header h5 {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        margin: 0;
+    }
+
+    .card-header h5::before {
+        content: "";
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, .85);
+    }
+
+    /* Tables */
+    .table-sm thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #f8fafc !important;
+    }
+
+    .table-sm tbody tr:hover {
+        background: #f9f9ff;
+    }
+
+    .table-sm input,
+    .table-sm select {
+        height: 34px;
+    }
+
+    .table-sm input[type="number"],
+    .text-end {
+        text-align: right;
+    }
+
+    .section-total {
+        background: #fff;
+        color: #6c5ce7;
+        border: 1px solid #eae7ff;
+        padding: .25rem .6rem;
+        border-radius: 999px;
+        font-weight: 700;
+        box-shadow: 0 1px 4px rgba(108, 92, 231, .15);
+    }
+
+    .sticky-summary {
+        position: sticky;
+        bottom: 0;
+        background: rgba(255, 255, 255, .95);
+        backdrop-filter: blur(6px);
+        padding-top: .75rem;
+        border-top: 1px solid #ececf6;
+        box-shadow: 0 -6px 20px rgba(0, 0, 0, .04);
+    }
+
+    .sticky-summary .input-group-text {
+        background: #f3f0ff;
+        color: #6c5ce7;
+        font-weight: 600;
+    }
+
+    .btn-outline-primary {
+        --bs-btn-color: #6c5ce7;
+        --bs-btn-border-color: #6c5ce7;
+        --bs-btn-hover-bg: #6c5ce7;
+        --bs-btn-hover-border-color: #6c5ce7;
+    }
+
+    .btn-primary {
+        background: #6c5ce7;
+        border-color: #6c5ce7;
+    }
 </style>
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  const sections = {
-    notice: {
-      tbody: document.querySelector('#noticeItemsTable tbody'),
-      addBtn: document.getElementById('addNoticeRowBtn'),
-      totalEl: null,
-      category: 'notice'
-    },
-    current: {
-      tbody: document.querySelector('#currentItemsTable tbody'),
-      addBtn: document.getElementById('addCurrentRowBtn'),
-      totalEl: document.getElementById('total-current'),
-      category: ''
-    },
-    previous: {
-      tbody: document.querySelector('#previousItemsTable tbody'),
-      addBtn: document.getElementById('addPreviousRowBtn'),
-      totalEl: document.getElementById('total-previous'),
-      category: 'previous_balance'
-    },
-    otherCharges: {
-      tbody: document.querySelector('#otherChargesTable tbody'),
-      addBtn: document.getElementById('addOtherChargeRowBtn'),
-      totalEl: document.getElementById('total-other-charges'),
-      category: 'other_charges'
-    }
-  };
+    document.addEventListener('DOMContentLoaded', () => {
+        // 顧客一覧（軽量データ）: data-* 属性から配列化
+        const customerList = Array.from(document.querySelectorAll('#customerDataset .cust')).map(function(el) {
+            return {
+                id: el.getAttribute('data-id'),
+                code: el.getAttribute('data-code') || '',
+                name: el.getAttribute('data-name') || ''
+            };
+        });
+        const sections = {
+            notice: {
+                tbody: document.querySelector('#noticeItemsTable tbody'),
+                addBtn: document.getElementById('addNoticeRowBtn'),
+                totalEl: null,
+                category: 'notice'
+            },
+            current: {
+                tbody: document.querySelector('#currentItemsTable tbody'),
+                addBtn: document.getElementById('addCurrentRowBtn'),
+                totalEl: document.getElementById('total-current'),
+                category: ''
+            },
+            previous: {
+                tbody: document.querySelector('#previousItemsTable tbody'),
+                addBtn: document.getElementById('addPreviousRowBtn'),
+                totalEl: document.getElementById('total-previous'),
+                category: 'previous_balance'
+            },
+            otherCharges: {
+                tbody: document.querySelector('#otherChargesTable tbody'),
+                addBtn: document.getElementById('addOtherChargeRowBtn'),
+                totalEl: document.getElementById('total-other-charges'),
+                category: 'other_charges'
+            }
+        };
 
-  const otherPayments = {
-    tbody: document.querySelector('#otherPaymentsTable tbody'),
-    addBtn: document.getElementById('addOtherPaymentBtn'),
-    totalEl: document.getElementById('total-other-payments')
-  };
+        const otherPayments = {
+            tbody: document.querySelector('#otherPaymentsTable tbody'),
+            addBtn: document.getElementById('addOtherPaymentBtn'),
+            totalEl: document.getElementById('total-other-payments')
+        };
 
-  function toNumber(v){
-    const n = parseFloat((v||'').toString().replace(/[^0-9.\-]/g,''));
-    return isNaN(n) ? 0 : n;
-  }
-  function formatYen(n){
-    return (n||0).toLocaleString('ja-JP', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
+        function toNumber(v) {
+            const n = parseFloat((v || '').toString().replace(/[^0-9.\-]/g, ''));
+            return isNaN(n) ? 0 : n;
+        }
 
-  function nextItemIndex(){
-    return sections.notice.tbody.children.length
-         + sections.current.tbody.children.length
-         + sections.previous.tbody.children.length
-         + sections.otherCharges.tbody.children.length;
-  }
+        function formatYen(n) {
+            return (n || 0).toLocaleString('ja-JP', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
 
-  function recalcTotals(){
-    let subtotal=0, taxTotal=0, otherFeesTotal=0;
-    const bySection = { notice:0, current:0, previous:0, otherCharges:0 };
+        function nextItemIndex() {
+            return sections.notice.tbody.children.length +
+                sections.current.tbody.children.length +
+                sections.previous.tbody.children.length +
+                sections.otherCharges.tbody.children.length;
+        }
 
-    Object.entries(sections).forEach(([key, sec]) => {
-      sec.tbody.querySelectorAll('tr').forEach((tr) => {
-        const qty = toNumber(tr.querySelector('.item-qty').value);
-        const unit = toNumber(tr.querySelector('.item-unit').value);
-        const taxRate = toNumber(tr.querySelector('.item-taxrate').value);
-        const amount = qty * unit;
-        tr.querySelector('.item-amount').value = amount.toFixed(2);
-        const tax = Math.round(((amount * taxRate) / 100) * 100) / 100;
-        tr.querySelector('.item-tax').value = tax.toFixed(2);
-        subtotal += amount;
-        taxTotal += tax;
-        if (key === 'otherCharges') { otherFeesTotal += amount + tax; }
-        bySection[key] += amount + tax;
-      });
-      if (sec.totalEl) sec.totalEl.textContent = '¥' + formatYen(bySection[key]);
-    });
+        function recalcTotals() {
+            let subtotal = 0,
+                taxTotal = 0,
+                otherFeesTotal = 0;
+            const bySection = {
+                notice: 0,
+                current: 0,
+                previous: 0,
+                otherCharges: 0
+            };
 
-    document.getElementById('subtotal_amount').value = formatYen(subtotal);
-    document.getElementById('tax_total').value = formatYen(taxTotal);
-    document.getElementById('other_fees_total').value = formatYen(otherFeesTotal);
-    document.getElementById('grand_total').value = formatYen(subtotal + taxTotal + otherFeesTotal);
+            Object.entries(sections).forEach(([key, sec]) => {
+                sec.tbody.querySelectorAll('tr').forEach((tr) => {
+                    const qty = toNumber(tr.querySelector('.item-qty').value);
+                    const unit = toNumber(tr.querySelector('.item-unit').value);
+                    const taxRate = toNumber(tr.querySelector('.item-taxrate').value);
+                    const amount = qty * unit;
+                    tr.querySelector('.item-amount').value = amount.toFixed(2);
+                    const tax = Math.round(((amount * taxRate) / 100) * 100) / 100;
+                    tr.querySelector('.item-tax').value = tax.toFixed(2);
+                    subtotal += amount;
+                    taxTotal += tax;
+                    if (key === 'otherCharges') {
+                        otherFeesTotal += amount + tax;
+                    }
+                    bySection[key] += amount + tax;
+                });
+                if (sec.totalEl) sec.totalEl.textContent = '¥' + formatYen(bySection[key]);
+            });
 
-    const amountInput = document.getElementById('amount');
-    if (amountInput) amountInput.value = (Math.round((subtotal + taxTotal + otherFeesTotal) * 100) / 100).toFixed(2);
+            document.getElementById('subtotal_amount').value = formatYen(subtotal);
+            document.getElementById('tax_total').value = formatYen(taxTotal);
+            document.getElementById('other_fees_total').value = formatYen(otherFeesTotal);
+            document.getElementById('grand_total').value = formatYen(subtotal + taxTotal + otherFeesTotal);
 
-    // Other payments total
-    let otherPaySum = 0;
-    otherPayments.tbody.querySelectorAll('tr').forEach((tr) => {
-      otherPaySum += toNumber(tr.querySelector('.op-amount')?.value);
-    });
-    if (otherPayments.totalEl) otherPayments.totalEl.textContent = '¥' + formatYen(otherPaySum);
-  }
+            const amountInput = document.getElementById('amount');
+            if (amountInput) amountInput.value = (Math.round((subtotal + taxTotal + otherFeesTotal) * 100) / 100).toFixed(2);
 
-  function rowTemplate(index, data){
-    return `
+            // Other payments total
+            let otherPaySum = 0;
+            otherPayments.tbody.querySelectorAll('tr').forEach((tr) => {
+                const opEl = tr.querySelector('.op-amount');
+                otherPaySum += toNumber(opEl ? opEl.value : '');
+            });
+            if (otherPayments.totalEl) otherPayments.totalEl.textContent = '¥' + formatYen(otherPaySum);
+        }
+
+        function rowTemplate(index, data) {
+            return `
       <td><input type="number" class="form-control form-control-sm" name="items[${index}][row_no]" value="${index+1}"></td>
       <td><input type="date" class="form-control form-control-sm" name="items[${index}][item_date]" value="${data.item_date||''}"></td>
       <td><input type="text" class="form-control form-control-sm" name="items[${index}][product_code]" value="${data.product_code||''}" placeholder="商品コード"></td>
@@ -428,38 +524,59 @@ document.addEventListener('DOMContentLoaded', () => {
       </td>
       <input type="hidden" name="items[${index}][category]" value="${data.category||''}">
     `;
-  }
+        }
 
-  function attachRowHandlers(tr, tbody){
-    tr.addEventListener('input', (e)=>{
-      if(e.target.matches('.item-qty, .item-unit, .item-taxrate')) recalcTotals();
-    });
-    tr.querySelector('.delRow').addEventListener('click', ()=>{ tr.remove(); recalcTotals(); });
-    tr.querySelector('.dupRow').addEventListener('click', ()=>{
-      const inputs = tr.querySelectorAll('input');
-      const data = {};
-      inputs.forEach(i=>{ const m=i.name && i.name.match(/items\[[0-9]+\]\[(.+)\]/); if(m){ data[m[1]] = i.value; }});
-      addRow(tbody.dataset.section, data);
-    });
-    tr.querySelector('.moveUp').addEventListener('click', ()=>{ const prev = tr.previousElementSibling; if(prev){ tbody.insertBefore(tr, prev); }});
-    tr.querySelector('.moveDown').addEventListener('click', ()=>{ const next = tr.nextElementSibling; if(next){ tbody.insertBefore(next, tr); }});
-  }
+        function attachRowHandlers(tr, tbody) {
+            tr.addEventListener('input', (e) => {
+                if (e.target.matches('.item-qty, .item-unit, .item-taxrate')) recalcTotals();
+            });
+            tr.querySelector('.delRow').addEventListener('click', () => {
+                tr.remove();
+                recalcTotals();
+            });
+            tr.querySelector('.dupRow').addEventListener('click', () => {
+                const inputs = tr.querySelectorAll('input');
+                const data = {};
+                inputs.forEach(i => {
+                    const m = i.name && i.name.match(/items\[[0-9]+\]\[(.+)\]/);
+                    if (m) {
+                        data[m[1]] = i.value;
+                    }
+                });
+                addRow(tbody.dataset.section, data);
+            });
+            tr.querySelector('.moveUp').addEventListener('click', () => {
+                const prev = tr.previousElementSibling;
+                if (prev) {
+                    tbody.insertBefore(tr, prev);
+                }
+            });
+            tr.querySelector('.moveDown').addEventListener('click', () => {
+                const next = tr.nextElementSibling;
+                if (next) {
+                    tbody.insertBefore(next, tr);
+                }
+            });
+        }
 
-  function addRow(sectionKey, data={}){
-    const sec = sections[sectionKey];
-    const index = nextItemIndex();
-    const tr = document.createElement('tr');
-    sec.tbody.dataset.section = sectionKey;
-    tr.innerHTML = rowTemplate(index, { ...data, category: sec.category });
-    sec.tbody.appendChild(tr);
-    attachRowHandlers(tr, sec.tbody);
-    recalcTotals();
-  }
+        function addRow(sectionKey, data = {}) {
+            const sec = sections[sectionKey];
+            const index = nextItemIndex();
+            const tr = document.createElement('tr');
+            sec.tbody.dataset.section = sectionKey;
+            tr.innerHTML = rowTemplate(index, {
+                ...data,
+                category: sec.category
+            });
+            sec.tbody.appendChild(tr);
+            attachRowHandlers(tr, sec.tbody);
+            recalcTotals();
+        }
 
-  function addOtherPaymentRow(data={}){
-    const index = otherPayments.tbody.children.length;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
+        function addOtherPaymentRow(data = {}) {
+            const index = otherPayments.tbody.children.length;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
       <td><input type="number" class="form-control form-control-sm" name="other_payments[${index}][row_no]" value="${index+1}"></td>
       <td><input type="date" class="form-control form-control-sm" name="other_payments[${index}][item_date]" value="${data.item_date||''}"></td>
       <td>
@@ -474,20 +591,109 @@ document.addEventListener('DOMContentLoaded', () => {
         <button type="button" class="btn btn-sm btn-outline-danger delRow">×</button>
       </td>
     `;
-    otherPayments.tbody.appendChild(tr);
-    tr.querySelector('.delRow').addEventListener('click', ()=>{ tr.remove(); recalcTotals(); });
-    tr.addEventListener('input', ()=> recalcTotals());
-    recalcTotals();
-  }
+            otherPayments.tbody.appendChild(tr);
+            tr.querySelector('.delRow').addEventListener('click', () => {
+                tr.remove();
+                recalcTotals();
+            });
+            tr.addEventListener('input', () => recalcTotals());
+            recalcTotals();
+        }
 
-  sections.notice.addBtn.addEventListener('click', ()=> addRow('notice'));
-  sections.current.addBtn.addEventListener('click', ()=> addRow('current'));
-  sections.previous.addBtn.addEventListener('click', ()=> addRow('previous'));
-  sections.otherCharges.addBtn.addEventListener('click', ()=> addRow('otherCharges'));
-  otherPayments.addBtn.addEventListener('click', ()=> addOtherPaymentRow());
+        sections.notice.addBtn.addEventListener('click', () => addRow('notice'));
+        sections.current.addBtn.addEventListener('click', () => addRow('current'));
+        sections.previous.addBtn.addEventListener('click', () => addRow('previous'));
+        sections.otherCharges.addBtn.addEventListener('click', () => addRow('otherCharges'));
+        otherPayments.addBtn.addEventListener('click', () => addOtherPaymentRow());
 
-  // 初期行
-  addRow('current');
-});
+        // 初期行
+        addRow('current');
+
+        // 顧客コード検索（正規化して一致）
+        const codeInput = document.getElementById('customer_code_input');
+        const codeBtn = document.getElementById('customer_code_search_btn');
+        const customerIdHidden = document.getElementById('customer_id');
+        const infoEl = document.getElementById('customer_info_display');
+
+        function toHalfWidthDigits(str) {
+            return (str || '').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 65248));
+        }
+
+        function normalizeCode(str) {
+            const half = toHalfWidthDigits(String(str || ''));
+            return half.replace(/[^0-9A-Za-z]/g, '').toUpperCase().replace(/^0+/, '');
+        }
+
+        function findCustomerByCode(input) {
+            const target = normalizeCode(input);
+            if (!target) return null;
+            // 厳密一致 → 末尾一致（ゼロ埋め差異吸収）
+            let found = customerList.find(c => normalizeCode(c.code) === target);
+            if (!found) {
+                found = customerList.find(c => normalizeCode(c.code).endsWith(target) || target.endsWith(normalizeCode(c.code)));
+            }
+            return found || null;
+        }
+
+        function renderCustomerInfo(cust) {
+            if (!infoEl) return;
+            infoEl.textContent = cust ? `${cust.name} (${cust.code})` : '未選択';
+        }
+
+        function setCustomer(cust) {
+            if (cust) {
+                customerIdHidden.value = cust.id;
+                renderCustomerInfo(cust);
+            } else {
+                customerIdHidden.value = '';
+                renderCustomerInfo(null);
+            }
+        }
+
+        function performLookup() {
+            const value = codeInput ? codeInput.value : '';
+            const local = findCustomerByCode(value);
+            if (local) {
+                setCustomer(local);
+                return;
+            }
+            fetch(`{{ route('api.customers.by-code') }}?code=${encodeURIComponent(value)}`, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.found && data.customer) {
+                        setCustomer(data.customer);
+                    } else {
+                        alert('該当の顧客コードが見つかりません');
+                        setCustomer(null);
+                    }
+                })
+                .catch(() => {
+                    alert('検索に失敗しました');
+                });
+        }
+        if (codeBtn) {
+            codeBtn.addEventListener('click', performLookup);
+        }
+        if (codeInput) {
+            codeInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    performLookup();
+                }
+            });
+        }
+        // ページ初期表示で既存選択があれば表示
+        (function initFromHidden() {
+            const currentId = customerIdHidden.value;
+            if (currentId) {
+                const cust = customerList.find(c => String(c.id) === String(currentId));
+                renderCustomerInfo(cust || null);
+            }
+        })();
+    });
 </script>
 @endsection

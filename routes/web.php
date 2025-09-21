@@ -18,16 +18,17 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::get('customers/import', [CustomerController::class, 'showImportXlsx'])->name('customers.import');
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');  
+    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::resource('customers', CustomerController::class);
     Route::get('customers-export-csv', [CustomerController::class, 'exportCsv'])->name('customers.export-csv');
     Route::get('customers-export-xlsx', [CustomerController::class, 'exportXlsx'])->name('customers.export-xlsx');
     // Route::get('customers/import', [CustomerController::class, 'showImportForm'])->name('customers.import');
     // Route::post('customers/import', [CustomerController::class, 'import'])->name('customers.import');
     Route::post('customers/import-xlsx', [CustomerController::class, 'importXlsx'])->name('customers.import-xlsx');
-    
+
     Route::get('api/bank-name', [CustomerController::class, 'getBankName'])->name('customers.get-bank-name');
     Route::get('api/branch-name', [CustomerController::class, 'getBranchName'])->name('customers.get-branch-name');
+    Route::get('api/customers/by-code', [CustomerController::class, 'findByCode'])->name('api.customers.by-code');
 
     Route::get('payments/upload', [PaymentController::class, 'showUploadForm'])->name('payments.upload-form');
     Route::post('payments/upload', [PaymentController::class, 'uploadMonthEndData'])->name('payments.upload');
@@ -42,11 +43,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/postcards/print/csv', [\App\Http\Controllers\PaymentController::class, 'exportPostcardPrintCsv'])->name('postcards.print.csv');
     Route::get('/postcards/print/xlsx', [\App\Http\Controllers\PaymentController::class, 'exportPostcardPrintXlsx'])->name('postcards.print.xlsx');
 
-// Detailed XLSX Import UI and APIs
-Route::get('/payments/detailed-import', [\App\Http\Controllers\PaymentController::class, 'showDetailedImportForm'])->name('payments.detailed.import');
-Route::post('/payments/detailed-import/preview', [\App\Http\Controllers\PaymentController::class, 'previewDetailedDepositXlsx'])->name('payments.detailed.preview');
-Route::post('/payments/detailed-import/commit', [\App\Http\Controllers\PaymentController::class, 'commitDetailedDepositXlsx'])->name('payments.detailed.commit');
-Route::delete('/payments/detailed-import/batch/{batchId}', [\App\Http\Controllers\PaymentController::class, 'deleteImportBatch'])->name('payments.detailed.delete');
+    // Detailed XLSX Import UI and APIs
+    Route::get('/payments/detailed-import', [\App\Http\Controllers\PaymentController::class, 'showDetailedImportForm'])->name('payments.detailed.import');
+    Route::post('/payments/detailed-import/preview', [\App\Http\Controllers\PaymentController::class, 'previewDetailedDepositXlsx'])->name('payments.detailed.preview');
+    Route::post('/payments/detailed-import/commit', [\App\Http\Controllers\PaymentController::class, 'commitDetailedDepositXlsx'])->name('payments.detailed.commit');
+    Route::delete('/payments/detailed-import/batch/{batchId}', [\App\Http\Controllers\PaymentController::class, 'deleteImportBatch'])->name('payments.detailed.delete');
     Route::get('/postcards/print/pdf', [\App\Http\Controllers\PaymentController::class, 'exportPostcardPrintPdf'])->name('postcards.print.pdf');
     Route::resource('payments', PaymentController::class);
 

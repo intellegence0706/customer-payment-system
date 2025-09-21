@@ -1,18 +1,21 @@
 <?php
 
 namespace App\Http\Controllers;
+
 use App\Models\Payment;
 use App\Models\PaymentItem;
 use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\PostcardExport;
-use App\Exports\PostcardPrintExport;
+// use App\Exports\PostcardPrintExport; // not used; CSV/XLSX builders inline
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Barryvdh\DomPDF\Facade\Pdf as PDF;
 
 class PaymentController extends Controller
 {
@@ -39,7 +42,72 @@ class PaymentController extends Controller
             'gross_total' => $subtotal + $taxTotal,
         ];
     }
-        private function loadJapaneseFontBase64(): ?string
+
+    /**
+     * Consolidate duplicate display items by normalized product name, summing amounts.
+     */
+    private function consolidateDisplayItems(array $items): array
+    {
+        $grouped = [];
+        foreach ($items as $it) {
+            $name = (string)($it['name'] ?? '');
+            $key = mb_strtolower(preg_replace('/\s+/u', '', $name));
+            if ($key === '') {
+                continue;
+            }
+            $amount = (float)($it['amount'] ?? 0);
+            if (!isset($grouped[$key])) {
+                $grouped[$key] = [
+                    'date' => $it['date'] ?? '',
+                    'name' => $name,
+                    'amount' => $amount,
+                ];
+            } else {
+                $grouped[$key]['amount'] += $amount;
+            }
+        }
+        return array_values($grouped);
+    }
+
+    /**
+     * Normalize postal code (e.g., 1234567 -> 123-4567).
+     */
+    private function formatPostalCode(?string $code): string
+    {
+        $raw = preg_replace('/[^0-9]/', '', (string)($code ?? ''));
+        if ($raw === '') {
+            return '';
+        }
+        if (strlen($raw) === 7) {
+            return substr($raw, 0, 3) . '-' . substr($raw, 3);
+        }
+        return $code ?? '';
+    }
+
+    /**
+     * Build best-effort address and postal code from customer record.
+     */
+    private function buildCustomerAddress(Customer $customer): array
+    {
+        $postal = $customer->postal_code ?? $customer->billing_postal_code ?? '';
+        $postal = $this->formatPostalCode($postal);
+
+        $address = trim((string)($customer->address ?? ''));
+        if ($address === '') {
+            $parts = [
+                $customer->billing_prefecture ?? '',
+                $customer->billing_city ?? '',
+                $customer->billing_street ?? '',
+                $customer->billing_building ?? '',
+            ];
+            $address = trim(implode(' ', array_values(array_filter($parts, function ($v) {
+                return (string)trim((string)$v) !== '';
+            }))));
+        }
+
+        return [$postal, $address];
+    }
+    private function loadJapaneseFontBase64(): ?string
     {
         $candidateFontPaths = [
             resource_path('fonts/NotoSansJP.ttf'),
@@ -57,6 +125,7 @@ class PaymentController extends Controller
                 }
             }
         }
+        return null;
     }
 
     /**
@@ -67,7 +136,9 @@ class PaymentController extends Controller
         if (!is_array($header)) {
             return false;
         }
-        $joined = implode('|', array_map(function ($h) { return trim((string)$h); }, $header));
+        $joined = implode('|', array_map(function ($h) {
+            return trim((string)$h);
+        }, $header));
         $requiredKeywords = ['対象年月', '顧客', '商品名'];
         foreach ($requiredKeywords as $kw) {
             if (mb_strpos($joined, $kw) === false) {
@@ -80,7 +151,7 @@ class PaymentController extends Controller
     /**
      * Import the detailed deposit XLSX format shown in the screenshot.
      */
-    private function importDetailedDepositXlsx(array $rows, array $header): array
+    private function importDetailedDepositXlsx(array $rows, array $header, array $options = []): array
     {
         $errors = [];
         $groups = [];
@@ -108,7 +179,9 @@ class PaymentController extends Controller
         }
 
         foreach ($rows as $rowNo => $row) {
-            if (empty(array_filter($row, function ($v) { return (string)trim((string)$v) !== ''; }))) {
+            if (empty(array_filter($row, function ($v) {
+                return (string)trim((string)$v) !== '';
+            }))) {
                 continue;
             }
             $customerCode = trim((string)($row[$customerCodeCol] ?? ''));
@@ -124,7 +197,8 @@ class PaymentController extends Controller
                     'customer_code' => $customerCode,
                     'customer_name' => $customerName,
                     'target_ym' => $targetYm,
-                    'rows' => [],
+                    // Use map to allow overwriting same-name items within one import
+                    'items_by_key' => [],
                 ];
             }
 
@@ -132,9 +206,11 @@ class PaymentController extends Controller
             $unitPrice = $this->parseDecimal($row[$unitPriceCol] ?? null);
             $amount = $this->parseDecimal($row[$amountCol] ?? null);
             $tax = $this->parseDecimal($row[$taxCol] ?? null);
-            $groups[$groupKey]['rows'][] = [
+            $name = trim((string)($row[$productNameCol] ?? ''));
+            $norm = mb_strtolower(preg_replace('/\s+/u', '', $name));
+            $groups[$groupKey]['items_by_key'][$norm] = [
                 'row_no' => $rowNo + 2,
-                'product_name' => trim((string)($row[$productNameCol] ?? '')),
+                'product_name' => $name,
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
                 'amount' => $amount,
@@ -145,7 +221,7 @@ class PaymentController extends Controller
 
         $imported = 0;
 
-        \DB::beginTransaction();
+        DB::beginTransaction();
         try {
             foreach ($groups as $group) {
                 $customer = null;
@@ -169,36 +245,51 @@ class PaymentController extends Controller
                     continue;
                 }
 
-                $subtotal = 0.0; $taxTotal = 0.0;
-                foreach ($group['rows'] as $r) {
+                $items = array_values($group['items_by_key']);
+                $subtotal = 0.0;
+                $taxTotal = 0.0;
+                foreach ($items as $r) {
                     $subtotal += (float)($r['amount'] ?? 0);
                     $taxTotal += (float)($r['tax_amount'] ?? 0);
                 }
                 $grandTotal = $subtotal + $taxTotal;
 
-                $exists = Payment::where('customer_id', $customer->id)
+                // Do NOT set payment_date at capture time; keep it null until results import
+                $paymentDate = null;
+
+                // Overwrite existing payment for this customer/month
+                $payment = Payment::where('customer_id', $customer->id)
                     ->where('payment_month', $month)
                     ->where('payment_year', $year)
                     ->first();
-                if ($exists) {
-                    $errors[] = "顧客'{$customer->name}'の{$year}年{$month}月の入金が既に存在します。";
-                    continue;
+
+                if ($payment) {
+                    $payment->update([
+                        'amount' => $grandTotal,
+                        'subtotal_amount' => $subtotal ?: null,
+                        'tax_total' => $taxTotal ?: null,
+                        'grand_total' => $grandTotal ?: null,
+                        'payment_date' => $paymentDate,
+                        'status' => 'pending',
+                        'notes' => '詳細XLSXから取込(上書き)',
+                    ]);
+                    $payment->items()->delete();
+                } else {
+                    $payment = Payment::create([
+                        'customer_id' => $customer->id,
+                        'payment_month' => $month,
+                        'payment_year' => $year,
+                        'amount' => $grandTotal,
+                        'subtotal_amount' => $subtotal ?: null,
+                        'tax_total' => $taxTotal ?: null,
+                        'grand_total' => $grandTotal ?: null,
+                        'payment_date' => $paymentDate,
+                        'status' => 'pending',
+                        'notes' => '詳細XLSXから取込',
+                    ]);
                 }
 
-                $payment = Payment::create([
-                    'customer_id' => $customer->id,
-                    'payment_month' => $month,
-                    'payment_year' => $year,
-                    'amount' => $grandTotal,
-                    'subtotal_amount' => $subtotal ?: null,
-                    'tax_total' => $taxTotal ?: null,
-                    'grand_total' => $grandTotal ?: null,
-                    'payment_date' => now(),
-                    'status' => 'completed',
-                    'notes' => '詳細XLSXから取込',
-                ]);
-
-                foreach ($group['rows'] as $idx => $r) {
+                foreach ($items as $idx => $r) {
                     PaymentItem::create([
                         'payment_id' => $payment->id,
                         'row_no' => $r['row_no'] ?? ($idx + 1),
@@ -218,9 +309,9 @@ class PaymentController extends Controller
                 $imported++;
             }
 
-            \DB::commit();
+            DB::commit();
         } catch (\Exception $e) {
-            \DB::rollBack();
+            DB::rollBack();
             $errors[] = '詳細XLSX取込でエラー: ' . $e->getMessage();
         }
 
@@ -287,7 +378,9 @@ class PaymentController extends Controller
     private function parseYearMonth(string $text): array
     {
         $t = trim((string)$text);
-        if ($t === '') { return [null, null]; }
+        if ($t === '') {
+            return [null, null];
+        }
 
         // Normalize: convert full-width to half-width, strip spaces
         $norm = mb_convert_kana($t, 'nask');
@@ -305,13 +398,18 @@ class PaymentController extends Controller
         if (preg_match_all('/(\d{4})[\/-](\d{1,2})/', $norm, $matches, PREG_SET_ORDER)) {
             $m = end($matches);
             $mm = (int)$m[2];
-            if ($mm >= 1 && $mm <= 12) { return [(int)$m[1], $mm]; }
+            if ($mm >= 1 && $mm <= 12) {
+                return [(int)$m[1], $mm];
+            }
         }
         // Compact yyyymm appearing inside text
         if (preg_match_all('/(\d{4})(\d{2})/', $norm, $matches, PREG_SET_ORDER)) {
             foreach (array_reverse($matches) as $m) {
-                $yy = (int)$m[1]; $mm = (int)$m[2];
-                if ($mm >= 1 && $mm <= 12) { return [$yy, $mm]; }
+                $yy = (int)$m[1];
+                $mm = (int)$m[2];
+                if ($mm >= 1 && $mm <= 12) {
+                    return [$yy, $mm];
+                }
             }
         }
         // Excel serial date
@@ -321,7 +419,8 @@ class PaymentController extends Controller
                 try {
                     $d = \Carbon\Carbon::create(1899, 12, 30)->addDays($serial);
                     return [$d->year, $d->month];
-                } catch (\Exception $e) {}
+                } catch (\Exception $e) {
+                }
             }
         }
 
@@ -378,11 +477,12 @@ class PaymentController extends Controller
         return $postcardData;
     }
 
-    private function generatePostcardPrintData(int $month, int $year): array
+    private function generatePostcardPrintData(int $month, int $year, int $offset = 0, int $limit = 200): array
     {
         $previousMonth = $month === 1 ? 12 : $month - 1;
         $previousYear = $month === 1 ? $year - 1 : $year;
 
+        // Collect customers who have either current month invoice or previous month receipt
         $customers = Customer::with([
             'payments' => function ($query) use ($month, $year, $previousMonth, $previousYear) {
                 $query->where(function ($q) use ($month, $year) {
@@ -392,8 +492,18 @@ class PaymentController extends Controller
                     $q->where('payment_month', $previousMonth)
                         ->where('payment_year', $previousYear);
                 });
-            }
-        ])->get();
+            },
+            'payments.items'
+        ])->whereHas('payments', function ($query) use ($month, $year, $previousMonth, $previousYear) {
+            $query->where(function ($q) use ($month, $year) {
+                $q->where('payment_month', $month)
+                    ->where('payment_year', $year);
+            })->orWhere(function ($q) use ($previousMonth, $previousYear) {
+                $q->where('payment_month', $previousMonth)
+                    ->where('payment_year', $previousYear);
+            });
+        })->orderBy('id')->skip(max(0, $offset))->take(max(1, $limit))->get();
+
         $rows = [];
         foreach ($customers as $customer) {
             $currentPayment = $customer->payments->where('payment_month', $month)
@@ -403,33 +513,96 @@ class PaymentController extends Controller
                 ->where('payment_year', $previousYear)
                 ->first();
 
+            // Resolve postal code and address reliably
+            [$pc, $addr] = $this->buildCustomerAddress($customer);
+
+            // Build current items
+            $currentItems = [];
+            $transferFee = 0.0;
+            if ($currentPayment) {
+                foreach ($currentPayment->items as $it) {
+                    $amount = (float)($it->amount ?? (($it->unit_price ?? 0) * ($it->quantity ?? 1)));
+                    $label = $it->product_name ?? '';
+                    if (stripos((string)$label, 'fee') !== false || ($it->category ?? '') === 'other_charges') {
+                        $transferFee += $amount;
+                    }
+                    $currentItems[] = [
+                        'date' => $it->item_date ? (is_string($it->item_date) ? date('Y-m-d', strtotime($it->item_date)) : $it->item_date->format('Y-m-d')) : '',
+                        'name' => $label,
+                        'amount' => $amount,
+                    ];
+                }
+            }
+            // Consolidate duplicate names
+            $currentItems = $this->consolidateDisplayItems($currentItems);
+
+            // Build previous items
+            $prevItems = [];
+            $prevTransferFee = 0.0;
+            if ($previousPayment) {
+                foreach ($previousPayment->items as $it) {
+                    $labelPrev = $it->product_name ?? '';
+                    $amtPrev = (float)($it->amount ?? (($it->unit_price ?? 0) * ($it->quantity ?? 1)));
+                    if (stripos((string)$labelPrev, 'fee') !== false || ($it->category ?? '') === 'other_charges') {
+                        $prevTransferFee += $amtPrev;
+                    }
+                    $prevItems[] = [
+                        'date' => $it->item_date ? (is_string($it->item_date) ? date('Y-m-d', strtotime($it->item_date)) : $it->item_date->format('Y-m-d')) : '',
+                        'name' => $labelPrev,
+                        'amount' => $amtPrev,
+                    ];
+                }
+            }
+            $prevItems = $this->consolidateDisplayItems($prevItems);
+
+            // Compute dates
+            $billingDate = \Carbon\Carbon::create($year, $month, 1)->endOfMonth();
+            $scheduledDebit = \Carbon\Carbon::create($year, $month, 1)->addMonthNoOverflow()->day(10);
+
             $rows[] = [
-                'recipient_name' => $customer->name,
+                // Front (address)
+                'recipient_name' => ($customer->name ?: ($customer->user_name ?? '-')),
                 'customer_number' => $customer->customer_number,
-                'address' => $customer->address,
-                'postal_code' => $customer->postal_code,
-                'current_month' => $month,
-                'current_year' => $year,
-                'current_amount' => $currentPayment ? $currentPayment->amount : null,
-                'current_payment_date' => ($currentPayment && $currentPayment->payment_date)
-                    ? (is_string($currentPayment->payment_date)
-                        ? $currentPayment->payment_date
-                        : $currentPayment->payment_date->format('Y-m-d'))
+                'address' => $addr,
+                'postal_code' => $pc,
+
+                // Back - invoice (current)
+                'current_items' => $currentItems,
+                'current_amount' => $currentPayment ? (float)$currentPayment->amount : 0.0,
+                'current_billing_date' => $billingDate->format('Y-m-d'),
+                'scheduled_debit_date' => $scheduledDebit->format('Y-m-d'),
+                'transfer_fee' => $transferFee,
+                'previous_transfer_fee' => $prevTransferFee,
+
+                // Back - receipt (previous)
+                'previous_items' => $prevItems,
+                'previous_amount' => $previousPayment ? (float)$previousPayment->amount : 0.0,
+                'receipt_date' => ($previousPayment && $previousPayment->payment_date)
+                    ? ($previousPayment->payment_date instanceof \Carbon\Carbon
+                        ? $previousPayment->payment_date->format('Y-m-d')
+                        : date('Y-m-d', strtotime($previousPayment->payment_date)))
                     : null,
-                'current_receipt_number' => $currentPayment ? $currentPayment->receipt_number : null,
-                'previous_month' => $previousMonth,
+
+                // Context
+                'year' => $year,
+                'month' => $month,
                 'previous_year' => $previousYear,
-                'previous_amount' => $previousPayment ? $previousPayment->amount : null,
-                'previous_receipt_number' => $previousPayment ? $previousPayment->receipt_number : null,
+                'previous_month' => $previousMonth,
             ];
+        }
+        // If odd count, add a blank row to keep pairs
+        if ((count($rows) % 2) === 1) {
+            $rows[] = [];
         }
         return $rows;
     }
 
-    
+
     private function buildPostcardPrintPdfData(int $month, int $year): array
     {
-        $payments = Payment::with(['customer', 'items' => function($q){ $q->orderBy('item_date'); }])
+        $payments = Payment::with(['customer', 'items' => function ($q) {
+            $q->orderBy('item_date');
+        }])
             ->where('payment_month', $month)
             ->where('payment_year', $year)
             ->orderBy('payment_date')
@@ -442,7 +615,7 @@ class PaymentController extends Controller
             foreach ($payment->items as $it) {
                 $amount = (float)($it->amount ?? (($it->unit_price ?? 0) * ($it->quantity ?? 1)));
                 $label = $it->product_name ?? '';
-            
+
                 if (stripos((string)$label, 'fee') !== false || ($it->category ?? '') === 'other_charges') {
                     $transferFee += $amount;
                 }
@@ -452,9 +625,10 @@ class PaymentController extends Controller
                     'amount' => $amount,
                 ];
             }
+            $items = $this->consolidateDisplayItems($items);
 
             $result[] = [
-                'bill_title' => date('F Y', mktime(0,0,0,$month,1,$year)),
+                'bill_title' => date('F Y', mktime(0, 0, 0, $month, 1, $year)),
                 'recipient_name' => $payment->customer->name ?? '-',
                 'customer_number' => $payment->customer->customer_number ?? '',
                 'amount_total' => (float)$payment->amount,
@@ -469,7 +643,7 @@ class PaymentController extends Controller
     public function index(Request $request)
     {
         $query = Payment::with('customer');
-       
+
         if ($request->filled('payment_month')) {
             $query->where('payment_month', $request->get('payment_month'));
         }
@@ -480,7 +654,7 @@ class PaymentController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->get('status'));
         }
-        
+
         $payments = $query->orderBy('payment_date', 'desc')->paginate(20);
         return view('payments.index', compact('payments'));
     }
@@ -497,9 +671,9 @@ class PaymentController extends Controller
             'customer_id' => 'required|exists:customers,id',
             'payment_month' => 'required|integer|between:1,12',
             'payment_year' => 'required|integer|min:2020',
-	            'amount' => 'required|numeric|min:0|max:99999999.99',
+            'amount' => 'required|numeric|min:0|max:99999999.99',
             'payment_date' => 'required|date',
-            'receipt_number' => 'nullable|string|max:50',   
+            'receipt_number' => 'nullable|string|max:50',
             'status' => 'required|in:pending,completed,failed',
             'notes' => 'nullable|string',
             'items' => 'nullable|array',
@@ -522,8 +696,10 @@ class PaymentController extends Controller
         ]);
 
         $payment = Payment::create($validated);
-    
-        $subtotal = 0.0; $taxTotal = 0.0; $otherFees = 0.0;
+
+        $subtotal = 0.0;
+        $taxTotal = 0.0;
+        $otherFees = 0.0;
         if ($request->filled('items')) {
             foreach ($request->input('items') as $index => $item) {
                 if (!isset($item['product_name']) || $item['product_name'] === '') {
@@ -603,10 +779,18 @@ class PaymentController extends Controller
 
         $items = $payment->items ?? collect();
         $grouped = [
-            'current' => $items->filter(function ($it) { return ($it->category ?? '') === '' || $it->category === null; }),
-            'previous' => $items->filter(function ($it) { return ($it->category ?? '') === 'previous_balance'; }),
-            'other' => $items->filter(function ($it) { return ($it->category ?? '') === 'other_charges'; }),
-            'notice' => $items->filter(function ($it) { return ($it->category ?? '') === 'notice'; }),
+            'current' => $items->filter(function ($it) {
+                return ($it->category ?? '') === '' || $it->category === null;
+            }),
+            'previous' => $items->filter(function ($it) {
+                return ($it->category ?? '') === 'previous_balance';
+            }),
+            'other' => $items->filter(function ($it) {
+                return ($it->category ?? '') === 'other_charges';
+            }),
+            'notice' => $items->filter(function ($it) {
+                return ($it->category ?? '') === 'notice';
+            }),
         ];
 
         $sectionTotals = [
@@ -631,8 +815,8 @@ class PaymentController extends Controller
             'customer_id' => 'required|exists:customers,id',
             'payment_month' => 'required|integer|between:1,12',
             'payment_year' => 'required|integer|min:2020',
-	            // Ensure amount fits into DECIMAL(10,2)
-	            'amount' => 'required|numeric|min:0|max:99999999.99',
+            // Ensure amount fits into DECIMAL(10,2)
+            'amount' => 'required|numeric|min:0|max:99999999.99',
             'payment_date' => 'required|date',
             'receipt_number' => 'nullable|string|max:50',
             'status' => 'required|in:pending,completed,failed',
@@ -661,7 +845,9 @@ class PaymentController extends Controller
 
         // Sync items: simple replace strategy for clarity
         $payment->items()->delete();
-        $subtotal = 0.0; $taxTotal = 0.0; $otherFees = 0.0;
+        $subtotal = 0.0;
+        $taxTotal = 0.0;
+        $otherFees = 0.0;
         if ($request->filled('items')) {
             foreach ($request->input('items') as $index => $item) {
                 if (!isset($item['product_name']) || $item['product_name'] === '') {
@@ -742,7 +928,7 @@ class PaymentController extends Controller
     {
 
         $currentMonth = now()->month;
-        $currentYear = now()->year;        
+        $currentYear = now()->year;
         return view('payments.upload', compact('currentMonth', 'currentYear'));
     }
 
@@ -755,7 +941,7 @@ class PaymentController extends Controller
 
     public function uploadMonthEndData(Request $request)
     {
-        
+
         $request->validate([
             'payment_file' => 'required|file|mimes:csv,txt,xlsx|max:2048', // 2MB max
             'payment_month' => 'required|integer|between:1,12',
@@ -773,18 +959,18 @@ class PaymentController extends Controller
             $file = $request->file('payment_file');
             $path = $file->store('uploads');
             $extension = strtolower($file->getClientOriginalExtension());
-            
+
             $data = [];
-            
+
             if ($extension === 'xlsx') {
-              
+
                 $spreadsheet = IOFactory::load(storage_path('app/' . $path));
                 $worksheet = $spreadsheet->getActiveSheet();
                 $rows = $worksheet->toArray();
                 if (empty($rows) || count($rows) < 2) {
                     throw new \Exception('XLSXファイルが空であるか、データが不足しています。');
                 }
-                
+
                 $header = array_shift($rows);
 
                 // Detailed deposit layout? Import via detailed path
@@ -813,16 +999,16 @@ class PaymentController extends Controller
 
                 $data = $rows;
             } else {
-            
+
                 $fileContent = file_get_contents(storage_path('app/' . $path));
                 $encoding = mb_detect_encoding($fileContent, ['UTF-8', 'SJIS', 'EUC-JP'], true);
                 if ($encoding && $encoding !== 'UTF-8') {
                     $fileContent = mb_convert_encoding($fileContent, 'UTF-8', $encoding);
                     file_put_contents(storage_path('app/' . $path), $fileContent);
                 }
-                
+
                 $handle = fopen(storage_path('app/' . $path), 'r');
-                
+
                 if (!$handle) {
                     throw new \Exception('アップロードされたファイルを読み込めません。');
                 }
@@ -837,52 +1023,52 @@ class PaymentController extends Controller
                 }
                 fclose($handle);
             }
-            
+
             $imported = 0;
             $errors = [];
             $rowNumber = 1;
 
             $customerCount = Customer::count();
-            \Log::info('XLSX Import Debug', [
+            Log::info('XLSX Import Debug', [
                 'extension' => $extension,
                 'data_count' => count($data),
                 'customer_count_in_db' => $customerCount,
                 'first_few_rows' => array_slice($data, 0, 3)
             ]);
 
-            \DB::beginTransaction();
-            
+            DB::beginTransaction();
+
             try {
                 foreach ($data as $rowData) {
                     $rowNumber++;
-                    
+
                     if (empty(array_filter($rowData))) {
                         continue;
                     }
-                                 
+
                     if (empty($rowData[0])) {
                         $errors[] = "{$rowNumber}行目: 顧客番号が必要です。";
                         continue;
                     }
-                    
+
                     $rawAmount = isset($rowData[1]) ? preg_replace('/[^0-9.\-]/', '', (string) $rowData[1]) : '';
                     if ($rawAmount === '' || !is_numeric($rawAmount)) {
                         $errors[] = "{$rowNumber}行目: 有効な金額が必要です。";
                         continue;
                     }
                     $amount = (float) $rawAmount;
-	                    if ($amount < 0 || $amount > 99999999.99) {
+                    if ($amount < 0 || $amount > 99999999.99) {
                         $errors[] = "{$rowNumber}行目: 金額が許可範囲外です。";
                         continue;
                     }
-                    
+
                     $customer = Customer::where('customer_number', trim($rowData[0]))->first();
-                    
+
                     if (!$customer) {
                         $errors[] = "{$rowNumber}行目: 顧客番号'{$rowData[0]}'が見つかりません。";
                         continue;
                     }
-                    
+
                     $paymentDate = null;
                     if (!empty($rowData[2])) {
                         try {
@@ -893,42 +1079,69 @@ class PaymentController extends Controller
                     } else {
                         $paymentDate = now();
                     }
-                    
 
-                    $existingPayment = Payment::where('customer_id', $customer->id)
-                        ->where('payment_month', $request->payment_month)
-                        ->where('payment_year', $request->payment_year)
-                        ->first();
-                    
-                    if ($existingPayment) {
-                        $errors[] = "{$rowNumber}行目: 顧客'{$customer->name}'の{$request->payment_year}年{$request->payment_month}月の入金が既に存在します。";
-                        continue;
+
+                    $receiptNumber = isset($rowData[3]) ? trim((string)$rowData[3]) : null;
+
+                    if ($receiptNumber !== null && $receiptNumber !== '') {
+                        // Upsert by receipt_number when provided
+                        $payment = Payment::where('receipt_number', $receiptNumber)->first();
+                        if ($payment) {
+                            $payment->update([
+                                'customer_id' => $customer->id,
+                                'payment_month' => $request->payment_month,
+                                'payment_year' => $request->payment_year,
+                                'amount' => $amount,
+                                'payment_date' => $paymentDate,
+                                'status' => 'completed',
+                                'notes' => '月末データから取込(上書き)'
+                            ]);
+                        } else {
+                            Payment::create([
+                                'customer_id' => $customer->id,
+                                'payment_month' => $request->payment_month,
+                                'payment_year' => $request->payment_year,
+                                'amount' => $amount,
+                                'payment_date' => $paymentDate,
+                                'receipt_number' => $receiptNumber,
+                                'status' => 'completed',
+                                'notes' => '月末データから取込',
+                            ]);
+                        }
+                    } else {
+                        // Fallback to month/year duplicate detection when no receipt number is provided
+                        $existingPayment = Payment::where('customer_id', $customer->id)
+                            ->where('payment_month', $request->payment_month)
+                            ->where('payment_year', $request->payment_year)
+                            ->first();
+                        if ($existingPayment) {
+                            $errors[] = "{$rowNumber}行目: 顧客'{$customer->name}'の{$request->payment_year}年{$request->payment_month}月の入金が既に存在します。";
+                            continue;
+                        }
+                        Payment::create([
+                            'customer_id' => $customer->id,
+                            'payment_month' => $request->payment_month,
+                            'payment_year' => $request->payment_year,
+                            'amount' => $amount,
+                            'payment_date' => $paymentDate,
+                            'receipt_number' => null,
+                            'status' => 'completed',
+                            'notes' => '月末データから取込',
+                        ]);
                     }
 
-                    Payment::create([
-                        'customer_id' => $customer->id,
-                        'payment_month' => $request->payment_month,
-                        'payment_year' => $request->payment_year,
-                        'amount' => $amount,
-                        'payment_date' => $paymentDate,
-                        'receipt_number' => $rowData[3] ?? null,
-                        'status' => 'completed',
-                        'notes' => '月末データから取込',
-                    ]);
-                    
                     $imported++;
                 }
-                
-                \DB::commit();
-                
+
+                DB::commit();
             } catch (\Exception $e) {
-                \DB::rollBack();
+                DB::rollBack();
                 throw $e;
             }
-            
+
             Storage::delete($path);
-            
-            \Log::info('XLSX Import Results', [
+
+            Log::info('XLSX Import Results', [
                 'imported' => $imported,
                 'error_count' => count($errors),
                 'errors' => array_slice($errors, 0, 5)
@@ -941,18 +1154,17 @@ class PaymentController extends Controller
                     $message .= " (他" . (count($errors) - 10) . "件のエラー)";
                 }
             }
-            
+
             $alertType = !empty($errors) ? 'warning' : 'success';
-            
+
             return redirect()->route('payments.index')
                 ->with($alertType, $message);
-                
         } catch (\Exception $e) {
 
             if (isset($path) && Storage::exists($path)) {
                 Storage::delete($path);
-            } 
-            
+            }
+
             return redirect()->back()
                 ->withInput()
                 ->withErrors(['payment_file' => 'アップロードに失敗しました: ' . $e->getMessage()]);
@@ -977,7 +1189,17 @@ class PaymentController extends Controller
                 '前月入金' => $row['previous_payment'] ?? null,
             ];
         }, $postcardData);
-        return view('payments.postcard-data', compact('postcardData', 'currentMonth', 'currentYear'));
+        // Enforce 20-per-page pagination using offset/limit
+        $total = count($postcardData);
+        $limit = 20; // fixed page size as requested
+        $offset = max(0, (int) $request->get('offset', 0));
+        if ($offset >= $total) {
+            $offset = max(0, $total > 0 ? ($total - ($total % $limit ?: $limit)) : 0);
+        }
+
+        $postcardData = array_slice($postcardData, $offset, $limit);
+
+        return view('payments.postcard-data', compact('postcardData', 'currentMonth', 'currentYear', 'total', 'offset', 'limit'));
     }
 
     public function exportPostcardCsv(Request $request)
@@ -988,19 +1210,25 @@ class PaymentController extends Controller
         $currentYear = (int) $year;
         $postcardData = $this->buildPostcardData($currentMonth, $currentYear);
         $filename = "はがき_{$year}_{$month}_" . date('Y-m-d_H-i-s') . '.csv';
-        $headers = [    
+        $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $callback = function() use ($postcardData, $currentMonth, $currentYear) {
-            echo "\xEF\xBB\xBF"; 
+        $callback = function () use ($postcardData, $currentMonth, $currentYear) {
+            echo "\xEF\xBB\xBF";
             $file = fopen('php://output', 'w');
-            
             fputcsv($file, [
-                '顧客名', '顧客番号', '住所', '郵便番号',
-                '当月', '当月の決済額', '当月決済日',
-                '前月', '以前の領収書番号', '以前のお支払い額'
+                '顧客名',
+                '顧客番号',
+                '住所',
+                '郵便番号',
+                '当月',
+                '当月の決済額',
+                '当月決済日',
+                '前月',
+                '以前の領収書番号',
+                '以前のお支払い額'
             ]);
 
             foreach ($postcardData as $row) {
@@ -1037,28 +1265,27 @@ class PaymentController extends Controller
             ];
         }, $postcardData);
         $embeddedFontBase64 = $this->loadJapaneseFontBase64();
-        \PDF::setOptions([
+        PDF::setOptions([
             'isHtml5ParserEnabled' => true,
             'isRemoteEnabled' => true,
-            'defaultFont' => 'NotoSansJP', 
+            'defaultFont' => 'NotoSansJP',
             'dpi' => 96,
             'fontDir' => base_path('resources/fonts'),
             'fontCache' => storage_path('fonts'),
-            ]);
-    
-        try {       
-            $pdf = \PDF::loadView('postcards.pdf', [
+        ]);
+
+        try {
+            $pdf = PDF::loadView('postcards.pdf', [
                 'postcardData' => $postcardData,
-                ])->setPaper('a4');
+            ])->setPaper('a4');
             $filename = sprintf('はがき_%04d_%02d_%s.pdf', (int)$year, (int)$month, date('Y-m-d_H-i-s'));
             return $pdf->download($filename);
-
         } catch (\Exception $e) {
             Log::error('Error generating PDF: ' . $e->getMessage());
             return response()->json(['error' => 'Failed to generate PDF'], 500);
         }
     }
-    
+
     public function exportPostcardPrintCsv(Request $request)
     {
         $month = (int) $request->get('month');
@@ -1072,38 +1299,74 @@ class PaymentController extends Controller
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
-        $callback = function() use ($data) {
+        $callback = function () use ($data) {
             echo "\xEF\xBB\xBF";
             $file = fopen('php://output', 'w');
             fputcsv($file, [
-                'Recipient Name', 'Customer Number', 'Address', 'Postal Code',
-                'Current Month', 'Current Year', 'Current Amount', 'Current Payment Date', 'Current Receipt Number',
-                'Previous Month', 'Previous Year', 'Previous Amount', 'Previous Receipt Number'
+                'Recipient Name',
+                'Customer Number',
+                'Address',
+                'Postal Code',
+                'Current Month',
+                'Current Year',
+                'Current Amount',
+                'Current Payment Date',
+                'Current Receipt Number',
+                'Previous Month',
+                'Previous Year',
+                'Previous Amount',
+                'Previous Receipt Number'
             ]);
             foreach ($data as $row) {
                 fputcsv($file, [
-                    $row['recipient_name'], $row['customer_number'], $row['address'], $row['postal_code'],
-                    $row['current_month'], $row['current_year'], $row['current_amount'], $row['current_payment_date'], $row['current_receipt_number'],
-                    $row['previous_month'], $row['previous_year'], $row['previous_amount'], $row['previous_receipt_number']
+                    $row['recipient_name'],
+                    $row['customer_number'],
+                    $row['address'],
+                    $row['postal_code'],
+                    $row['current_month'],
+                    $row['current_year'],
+                    $row['current_amount'],
+                    $row['current_payment_date'],
+                    $row['current_receipt_number'],
+                    $row['previous_month'],
+                    $row['previous_year'],
+                    $row['previous_amount'],
+                    $row['previous_receipt_number']
                 ]);
             }
             fclose($file);
         };
-        return response()->stream($callback, 200, $headers);       
+        return response()->stream($callback, 200, $headers);
     }
 
     public function exportPostcardPrintPdf(Request $request)
     {
-       
+
+        try {
+            @set_time_limit(180);
+        } catch (\Throwable $e) {
+        }
+        try {
+            @ini_set('max_execution_time', '180');
+        } catch (\Throwable $e) {
+        }
+        try {
+            @ini_set('memory_limit', '512M');
+        } catch (\Throwable $e) {
+        }
+
         $paymentId = $request->get('payment_id');
         if ($paymentId) {
-            $payment = Payment::with(['customer', 'items' => function($q){ $q->orderBy('item_date'); }])->find($paymentId);
+            $payment = Payment::with(['customer', 'items' => function ($q) {
+                $q->orderBy('item_date');
+            }])->find($paymentId);
             if (!$payment) {
                 return redirect()->back()->with('error', '指定された入金が見つかりませんでした。');
             }
             $month = (int) ($payment->payment_month ?? now()->month);
             $year = (int) ($payment->payment_year ?? now()->year);
-            $rows = [];
+            // Current items and totals
+            $currentItems = [];
             $transferFee = 0.0;
             foreach ($payment->items as $it) {
                 $amount = (float)($it->amount ?? (($it->unit_price ?? 0) * ($it->quantity ?? 1)));
@@ -1111,20 +1374,59 @@ class PaymentController extends Controller
                 if (stripos((string)$label, 'fee') !== false || ($it->category ?? '') === 'other_charges') {
                     $transferFee += $amount;
                 }
-                $rows[] = [
-                    'date' => $it->item_date ? (is_string($it->item_date) ? date('n/j', strtotime($it->item_date)) : $it->item_date->format('n/j')) : '',
+                $currentItems[] = [
+                    'date' => $it->item_date ? (is_string($it->item_date) ? date('Y-m-d', strtotime($it->item_date)) : $it->item_date->format('Y-m-d')) : '',
                     'name' => $label,
                     'amount' => $amount,
                 ];
             }
+
+            // Previous month for this customer
+            $prevMonth = $month === 1 ? 12 : $month - 1;
+            $prevYear  = $month === 1 ? $year - 1 : $year;
+            $prev = Payment::with(['items'])->where('customer_id', $payment->customer_id)
+                ->where('payment_month', $prevMonth)
+                ->where('payment_year', $prevYear)
+                ->first();
+            $prevItems = [];
+            $receiptDate = null;
+            $prevAmount = 0.0;
+            if ($prev) {
+                $receiptDate = $prev->payment_date ? ($prev->payment_date instanceof \Carbon\Carbon ? $prev->payment_date->format('Y-m-d') : date('Y-m-d', strtotime($prev->payment_date))) : null;
+                $prevAmount = (float)$prev->amount;
+                foreach ($prev->items as $pit) {
+                    $prevItems[] = [
+                        'date' => $pit->item_date ? (is_string($pit->item_date) ? date('Y-m-d', strtotime($pit->item_date)) : $pit->item_date->format('Y-m-d')) : '',
+                        'name' => $pit->product_name ?? '',
+                        'amount' => (float)($pit->amount ?? (($pit->unit_price ?? 0) * ($pit->quantity ?? 1))),
+                    ];
+                }
+                $prevItems = $this->consolidateDisplayItems($prevItems);
+            }
+
+            $billingDate = \Carbon\Carbon::create($year, $month, 1)->endOfMonth()->format('Y-m-d');
+            $scheduledDebit = \Carbon\Carbon::create($year, $month, 1)->addMonthNoOverflow()->day(10)->format('Y-m-d');
+
+            // Resolve postal code and address reliably from the payment's customer
+            [$pc, $addr] = $payment && $payment->customer ? $this->buildCustomerAddress($payment->customer) : ['', ''];
+
             $data = [[
-                'bill_title' => date('F Y', mktime(0,0,0,$month,1,$year)),
-                'recipient_name' => $payment->customer->name ?? '-',
+                'recipient_name' => (($payment->customer->name ?? '') !== '' ? $payment->customer->name : ($payment->customer->user_name ?? '-')),
                 'customer_number' => $payment->customer->customer_number ?? '',
-                'amount_total' => (float)$payment->amount,
-                'transfer_date' => $payment->payment_date ? ($payment->payment_date instanceof \Carbon\Carbon ? $payment->payment_date->format('F j, Y') : date('F j, Y', strtotime($payment->payment_date))) : '',
-                'items' => $rows,
+                'address' => $addr,
+                'postal_code' => $pc,
+                'year' => $year,
+                'month' => $month,
+                'current_items' => $currentItems,
+                'current_amount' => (float)$payment->amount,
+                'current_billing_date' => $billingDate,
+                'scheduled_debit_date' => $scheduledDebit,
                 'transfer_fee' => $transferFee,
+                'previous_year' => $prevYear,
+                'previous_month' => $prevMonth,
+                'previous_items' => $prevItems,
+                'previous_amount' => $prevAmount,
+                'receipt_date' => $receiptDate,
             ]];
         } else {
             $month = (int) $request->get('month');
@@ -1132,10 +1434,17 @@ class PaymentController extends Controller
             if (!$month || $month < 1 || $month > 12 || !$year || $year < 2020) {
                 return redirect()->back()->with('error', '有効な月と年を選択してください。');
             }
-            $data = $this->buildPostcardPrintPdfData($month, $year);
+            // Paginate customers to avoid timeouts
+            $offset = (int) $request->get('offset', 0);
+            // Keep default small to avoid 30s gateway timeout
+            $limit = (int) $request->get('limit', 50);
+            $data = $this->generatePostcardPrintData($month, $year, $offset, $limit);
+            if (empty($data)) {
+                $data = [[]];
+            }
         }
 
-        \PDF::setOptions([
+        PDF::setOptions([
             'isHtml5ParserEnabled' => true,
             'isRemoteEnabled' => true,
             'defaultFont' => env('DOMPDF_DEFAULT_FONT', 'NotoSansJP'),
@@ -1144,9 +1453,9 @@ class PaymentController extends Controller
             'fontCache' => storage_path('fonts'),
         ]);
 
-        $pdf = \PDF::loadView('postcards.print-pdf', [ 'data' => $data, 'month' => $month, 'year' => $year ])
+        $pdf = PDF::loadView('postcards.print-pdf', ['data' => $data, 'month' => $month, 'year' => $year])
             ->setPaper('a4');
-        $filename = sprintf('はがき印刷_%04d_%02d_%s.pdf', (int)$year, (int)$month, date('Y-m-d_H-i-s'));
+        $filename = sprintf('はがき印刷_%04d_%02d_%s_%d-%d.pdf', (int)$year, (int)$month, date('Y-m-d_H-i-s'), (int)($request->get('offset', 0)), (int)($request->get('limit', 50)));
         return $pdf->download($filename);
     }
 
@@ -1157,9 +1466,9 @@ class PaymentController extends Controller
         $currentMonth = (int) $month;
         $currentYear = (int) $year;
         $postcardData = $this->buildPostcardData($currentMonth, $currentYear);
-        
+
         $filename = "はがき_{$year}_{$month}_" . date('Y-m-d_H-i-s') . '.xlsx';
-        
+
         return Excel::download(new PostcardExport($postcardData, $currentMonth, $currentYear), $filename);
     }
 
@@ -1172,8 +1481,37 @@ class PaymentController extends Controller
         }
         $data = $this->generatePostcardPrintData($month, $year);
         $filename = "postcard_print_{$year}_{$month}_" . date('Y-m-d_H-i-s') . ".xlsx";
-        
-        return Excel::download(new PostcardPrintExport($data), $filename);
+
+        // Build XLSX on the fly using PhpSpreadsheet
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $headers = ['Recipient Name', 'Customer Number', 'Address', 'Postal Code', 'Current Month', 'Current Year', 'Current Amount', 'Current Payment Date', 'Current Receipt Number', 'Previous Month', 'Previous Year', 'Previous Amount', 'Previous Receipt Number'];
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValueByColumnAndRow($i + 1, 1, $h);
+        }
+        $r = 2;
+        foreach ($data as $row) {
+            $sheet->fromArray([
+                $row['recipient_name'] ?? '',
+                $row['customer_number'] ?? '',
+                $row['address'] ?? '',
+                $row['postal_code'] ?? '',
+                $row['current_month'] ?? '',
+                $row['current_year'] ?? '',
+                $row['current_amount'] ?? 0,
+                $row['current_payment_date'] ?? '',
+                $row['current_receipt_number'] ?? '',
+                $row['previous_month'] ?? '',
+                $row['previous_year'] ?? '',
+                $row['previous_amount'] ?? 0,
+                $row['previous_receipt_number'] ?? '',
+            ], null, 'A' . $r);
+            $r++;
+        }
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $tmp = tempnam(sys_get_temp_dir(), 'postcard_print_');
+        $writer->save($tmp);
+        return response()->download($tmp, $filename)->deleteFileAfterSend(true);
     }
 
     public function showXlsxViewer()
@@ -1208,17 +1546,19 @@ class PaymentController extends Controller
             }
 
             $index = [];
-            foreach ($header as $i => $h) { $index[trim((string)$h)] = $i; }
-            $ym = $this->findHeaderIndex($index, ['対象年月','年月','対象月']);
-            $code = $this->findHeaderIndex($index, ['顧客CD','顧客番号']);
-            $nameKana = $this->findHeaderIndex($index, ['氏名カナ','利用者カナ氏名']);
-            $name = $this->findHeaderIndex($index, ['氏名','利用者氏名']);
+            foreach ($header as $i => $h) {
+                $index[trim((string)$h)] = $i;
+            }
+            $ym = $this->findHeaderIndex($index, ['対象年月', '年月', '対象月']);
+            $code = $this->findHeaderIndex($index, ['顧客CD', '顧客番号']);
+            $nameKana = $this->findHeaderIndex($index, ['氏名カナ', '利用者カナ氏名']);
+            $name = $this->findHeaderIndex($index, ['氏名', '利用者氏名']);
             $edaban = $this->findHeaderIndex($index, ['枝番']);
             $product = $this->findHeaderIndex($index, ['商品名']);
             $qty = $this->findHeaderIndex($index, ['数量']);
             $unit = $this->findHeaderIndex($index, ['単価']);
             $amount = $this->findHeaderIndex($index, ['金額']);
-            $tax = $this->findHeaderIndex($index, ['消費税','税']);
+            $tax = $this->findHeaderIndex($index, ['消費税', '税']);
             $payClass = $this->findHeaderIndex($index, ['支払区分']);
             $method = $this->findHeaderIndex($index, ['支払方法']);
 
@@ -1260,19 +1600,26 @@ class PaymentController extends Controller
                 'header' => $header,
                 'rows' => $data,
                 'filename' => $file->getClientOriginalName(),
+                // Provide suggested default debit date based on next month 10th
+                'suggested_debit_date' => \Carbon\Carbon::now()->startOfMonth()->addMonthNoOverflow()->day(10)->format('Y-m-d')
             ]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'error' => $e->getMessage()], 400);
         } finally {
-            if (isset($path) && Storage::exists($path)) { Storage::delete($path); }
+            if (isset($path) && Storage::exists($path)) {
+                Storage::delete($path);
+            }
         }
     }
 
-        // Commit import with batch id (from preview rows)
+    // Commit import with batch id (from preview rows)
     public function commitDetailedDepositXlsx(Request $request)
     {
         $request->validate([
             'rows' => 'required|array|min:1',
+            // Optional import options
+            'debit_day' => 'nullable|integer|between:1,28',
+            'debit_date' => 'nullable|date',
         ]);
 
         $rows = $request->input('rows');
@@ -1280,7 +1627,7 @@ class PaymentController extends Controller
         $errors = [];
         $imported = 0;
 
-        // Group rows by (customer, year, month) and upsert
+        // Group rows by (customer, year, month) and prepare for upsert
         $groups = [];
         foreach ($rows as $row) {
             $name = trim((string)($row['氏名'] ?? ''));
@@ -1288,7 +1635,9 @@ class PaymentController extends Controller
             $customer = null;
             if ($name !== '') {
                 $customer = Customer::where('user_name', $name)->first();
-                if (!$customer) { $customer = Customer::where('user_name', 'like', '%' . $name . '%')->first(); }
+                if (!$customer) {
+                    $customer = Customer::where('user_name', 'like', '%' . $name . '%')->first();
+                }
             }
             if (!$customer && $code !== '') {
                 $customer = Customer::where('customer_number', $code)->orWhere('customer_code', $code)->first();
@@ -1310,15 +1659,13 @@ class PaymentController extends Controller
                     'customer' => $customer,
                     'year' => $year,
                     'month' => $month,
-                    'subtotal' => 0.0,
-                    'tax' => 0.0,
-                    'items' => [],
+                    // Deduplicate items by normalized product name within the same customer-month
+                    'items_by_key' => [],
                 ];
             }
-            $groups[$key]['subtotal'] += (float)($this->parseDecimal($row['金額'] ?? null) ?? 0);
-            $groups[$key]['tax'] += (float)($this->parseDecimal($row['消費税'] ?? null) ?? 0);
             if (!empty($row['商品名'])) {
-                $groups[$key]['items'][] = [
+                $normalizedName = mb_strtolower(preg_replace('/\s+/u', '', (string)$row['商品名']));
+                $groups[$key]['items_by_key'][$normalizedName] = [
                     'row_no' => (int)($row['枝番'] ?? ($row['row'] ?? 0)),
                     'product_name' => (string)$row['商品名'],
                     'unit_price' => $this->parseDecimal($row['単価'] ?? null),
@@ -1331,29 +1678,43 @@ class PaymentController extends Controller
             }
         }
 
-        \DB::beginTransaction();
+        DB::beginTransaction();
         try {
             foreach ($groups as $group) {
                 $customer = $group['customer'];
                 $year = $group['year'];
                 $month = $group['month'];
-                $subtotal = (float)$group['subtotal'];
-                $tax = (float)$group['tax'];
+                $items = array_values($group['items_by_key']);
+                $subtotal = 0.0;
+                $tax = 0.0;
+                foreach ($items as $it) {
+                    $subtotal += (float)($it['amount'] ?? 0);
+                    $tax += (float)($it['tax_amount'] ?? 0);
+                }
                 $grand = $subtotal + $tax;
 
-                // Find existing payment or create a new one
+                // Overwrite existing month's payment for this customer (idempotent import)
                 $payment = Payment::where('customer_id', $customer->id)
                     ->where('payment_year', $year)
                     ->where('payment_month', $month)
                     ->first();
 
+                // Do NOT set payment_date at capture commit time; keep it null until results import
+                $paymentDate = null;
+
                 if ($payment) {
+                    // Replace totals and items to avoid duplication when importing multiple times
                     $payment->update([
-                        'amount' => (float)$payment->amount + $grand,
-                        'subtotal_amount' => (float)($payment->subtotal_amount ?? 0) + $subtotal,
-                        'tax_total' => (float)($payment->tax_total ?? 0) + $tax,
-                        'grand_total' => (float)($payment->grand_total ?? 0) + $grand,
+                        'amount' => $grand,
+                        'subtotal_amount' => $subtotal ?: null,
+                        'tax_total' => $tax ?: null,
+                        'grand_total' => $grand ?: null,
+                        'payment_date' => $paymentDate,
+                        'status' => 'pending',
+                        'notes' => '詳細XLSXから取込(上書き)'
                     ]);
+                    // Remove existing items for this payment and re-insert
+                    $payment->items()->delete();
                 } else {
                     $payment = Payment::create([
                         'customer_id' => $customer->id,
@@ -1363,14 +1724,14 @@ class PaymentController extends Controller
                         'subtotal_amount' => $subtotal ?: null,
                         'tax_total' => $tax ?: null,
                         'grand_total' => $grand ?: null,
-                        'payment_date' => now(),
-                        'status' => 'completed',
+                        'payment_date' => $paymentDate,
+                        'status' => 'pending',
                         'notes' => '詳細XLSXから取込',
                         'import_batch_id' => $batchId,
                     ]);
                 }
 
-                foreach ($group['items'] as $it) {
+                foreach ($items as $it) {
                     PaymentItem::create([
                         'payment_id' => $payment->id,
                         'row_no' => $it['row_no'],
@@ -1389,9 +1750,9 @@ class PaymentController extends Controller
 
                 $imported++;
             }
-            \DB::commit();
+            DB::commit();
         } catch (\Exception $e) {
-            \DB::rollBack();
+            DB::rollBack();
             $errors[] = 'エラー: ' . $e->getMessage();
         }
 
@@ -1412,12 +1773,40 @@ class PaymentController extends Controller
 
     private function looksLikeDetailedHeader($header): bool
     {
-        if (!is_array($header)) { return false; }
+        if (!is_array($header)) {
+            return false;
+        }
         $joined = implode('|', array_map(fn($h) => trim((string)$h), $header));
-        foreach (['対象年月','顧客','商品名'] as $kw) {
-            if (mb_strpos($joined, $kw) === false) { return false; }
+        foreach (['対象年月', '顧客', '商品名'] as $kw) {
+            if (mb_strpos($joined, $kw) === false) {
+                return false;
+            }
         }
         return true;
+    }
+
+    /**
+     * Resolve scheduled debit date for a given year/month with options:
+     * - options['debit_date'] => explicit Y-m-d overrides
+     * - options['debit_day'] => day of month (1-28), else default to 10th of next month
+     */
+    private function resolveScheduledPaymentDate(int $year, int $month, array $options = []): \Carbon\Carbon
+    {
+        try {
+            if (!empty($options['debit_date'])) {
+                return \Carbon\Carbon::parse($options['debit_date']);
+            }
+        } catch (\Throwable $e) {
+        }
+
+        $day = (int)($options['debit_day'] ?? 10);
+        if ($day < 1 || $day > 28) {
+            $day = 10;
+        }
+
+        // Default: next month on selected day
+        $base = \Carbon\Carbon::create($year, $month, 1)->addMonthNoOverflow();
+        return $base->day($day);
     }
     public function previewXlsxData(Request $request)
     {
@@ -1432,19 +1821,19 @@ class PaymentController extends Controller
         try {
             $file = $request->file('xlsx_file');
             $path = $file->store('temp');
-            
+
             // Load XLSX file
             $spreadsheet = IOFactory::load(storage_path('app/' . $path));
             $worksheet = $spreadsheet->getActiveSheet();
             $rows = $worksheet->toArray();
-            
+
             if (empty($rows)) {
                 throw new \Exception('XLSXファイルが空です。');
             }
-            
+
             $header = array_shift($rows); // Remove header row
             $data = [];
-            
+
             foreach ($rows as $index => $row) {
                 if (!empty(array_filter($row))) {
                     $data[] = [
@@ -1457,10 +1846,10 @@ class PaymentController extends Controller
                     ];
                 }
             }
-            
+
             // Clean up temp file
             Storage::delete($path);
-            
+
             return response()->json([
                 'success' => true,
                 'header' => $header,
@@ -1468,7 +1857,6 @@ class PaymentController extends Controller
                 'total_rows' => count($data),
                 'filename' => $file->getClientOriginalName()
             ]);
-            
         } catch (\Exception $e) {
             if (isset($path) && Storage::exists($path)) {
                 Storage::delete($path);
@@ -1498,36 +1886,36 @@ class PaymentController extends Controller
         try {
             $imported = 0;
             $errors = [];
-            
-            \DB::beginTransaction();
-            
+
+            DB::beginTransaction();
+
             foreach ($request->selected_rows as $rowIndex => $rowData) {
                 $displayRow = $rowIndex + 1;
-                
+
                 // Validate required fields
                 if (empty($rowData[0])) {
                     $errors[] = "{$displayRow}行目: 顧客番号が必要です。";
                     continue;
                 }
-                
+
                 $rawAmount = isset($rowData[1]) ? preg_replace('/[^0-9.\-]/', '', (string) $rowData[1]) : '';
                 if ($rawAmount === '' || !is_numeric($rawAmount)) {
                     $errors[] = "{$displayRow}行目: 有効な金額が必要です。";
                     continue;
                 }
                 $amount = (float) $rawAmount;
-                
+
                 if ($amount < 0 || $amount > 99999999.99) {
                     $errors[] = "{$displayRow}行目: 金額が許可範囲外です。";
                     continue;
                 }
-                
+
                 $customer = Customer::where('customer_number', trim($rowData[0]))->first();
                 if (!$customer) {
                     $errors[] = "{$displayRow}行目: 顧客番号'{$rowData[0]}'が見つかりません。";
                     continue;
                 }
-                
+
                 $paymentDate = null;
                 if (!empty($rowData[2])) {
                     try {
@@ -1538,34 +1926,62 @@ class PaymentController extends Controller
                 } else {
                     $paymentDate = now();
                 }
-                
-            
-                $existingPayment = Payment::where('customer_id', $customer->id)
-                    ->where('payment_month', $request->payment_month)
-                    ->where('payment_year', $request->payment_year)
-                    ->first();
-                
-                if ($existingPayment) {
-                    $errors[] = "{$displayRow}行目: 顧客'{$customer->name}'の{$request->payment_year}年{$request->payment_month}月の入金が既に存在します。";
-                    continue;
+
+
+                $receiptNumber = isset($rowData[3]) ? trim((string)$rowData[3]) : null;
+
+                if ($receiptNumber !== null && $receiptNumber !== '') {
+                    // Upsert by receipt_number when provided
+                    $payment = Payment::where('receipt_number', $receiptNumber)->first();
+                    if ($payment) {
+                        $payment -> update([
+                            'customer_id' => $customer->id,
+                            'payment_month' => $request->payment_month,
+                            'payment_year' => $request->payment_year,
+                            'amount' => $amount,
+                            'payment_date' => $paymentDate,
+                            'status' => 'completed',
+                            'notes' => 'XLSXビューアーから取込(上書き)',
+                        ]);
+                    } else {
+                        Payment::create([
+                            'customer_id' => $customer->id,
+                            'payment_month' => $request->payment_month,
+                            'payment_year' => $request->payment_year,
+                            'amount' => $amount,
+                            'payment_date' => $paymentDate,
+                            'receipt_number' => $receiptNumber,
+                            'status' => 'completed',
+                            'notes' => 'XLSXビューアーから取込',
+                        ]);
+                    }
+                } else {
+                    // Fallback duplicate guard by month/year if no receipt number present
+                    $existingPayment = Payment::where('customer_id', $customer->id)
+                        ->where('payment_month', $request->payment_month)
+                        ->where('payment_year', $request->payment_year)
+                        ->first();
+                    if ($existingPayment) {
+                        $errors[] = "{$displayRow}行目: 顧客'{$customer->name}'の{$request->payment_year}年{$request->payment_month}月の入金が既に存在します。";
+                        continue;
+                    }
+                    Payment::create([
+                        'customer_id' => $customer->id,
+                        'payment_month' => $request->payment_month,
+                        'payment_year' => $request->payment_year,
+                        'amount' => $amount,
+                        'payment_date' => $paymentDate,
+                        'receipt_number' => null,
+                        'status' => 'completed',
+                        'notes' => 'XLSXビューアーから取込',
+                    ]);
                 }
-                
-                Payment::create([
-                    'customer_id' => $customer->id,
-                    'payment_month' => $request->payment_month,
-                    'payment_year' => $request->payment_year,
-                    'amount' => $amount,
-                    'payment_date' => $paymentDate,
-                    'receipt_number' => $rowData[3] ?? null,
-                    'status' => 'completed',
-                    'notes' => 'XLSXビューアーから取込',
-                ]);
-                
+
                 $imported++;
             }
-            
-            \DB::commit();
-            
+
+            DB::commit();
+
             $message = "{$imported}件の入金データを正常に取り込みました。";
             if (!empty($errors)) {
                 $message .= " エラー: " . implode('; ', array_slice($errors, 0, 5));
@@ -1573,22 +1989,16 @@ class PaymentController extends Controller
                     $message .= " (他" . (count($errors) - 5) . "件のエラー)";
                 }
             }
-            
+
             $alertType = !empty($errors) ? 'warning' : 'success';
-            
+
             return redirect()->route('payments.index')
                 ->with($alertType, $message);
-                
         } catch (\Exception $e) {
-            \DB::rollBack();
+            DB::rollBack();
             return redirect()->back()
                 ->withInput()
                 ->withErrors(['import' => 'インポートに失敗しました: ' . $e->getMessage()]);
         }
     }
-
-   
 }
-
-
-
